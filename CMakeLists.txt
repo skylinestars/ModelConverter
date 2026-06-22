@@ -94,6 +94,9 @@ add_executable(mc_tests
 target_link_libraries(mc_tests PRIVATE mc_common mc_core mc_pluginmgr mc_pipeline GTest::gtest GTest::gtest_main)
 target_include_directories(mc_tests PRIVATE ${MC_INCLUDE_DIR})
 target_compile_features(mc_tests PUBLIC cxx_std_17)
+add_dependencies(mc_tests Plugin_Dummy)
 
 include(GoogleTest)
-gtest_discover_tests(mc_tests)
+gtest_discover_tests(mc_tests
+    WORKING_DIRECTORY $<TARGET_FILE_DIR:mc_tests>
+)

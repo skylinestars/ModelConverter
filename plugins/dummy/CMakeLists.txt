@@ -6,7 +6,11 @@ target_include_directories(Plugin_Dummy PRIVATE ${MC_INCLUDE_DIR})
 target_link_libraries(Plugin_Dummy PRIVATE mc_common)
 target_compile_features(Plugin_Dummy PRIVATE cxx_std_17)
 
-# 将 DLL 输出到与 mc_cli.exe 相同的目录，便于运行时加载
+# 将 DLL 输出到与 mc_tests.exe 相同目录，确保 ctest 能居相对路径加载
 set_target_properties(Plugin_Dummy PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/Debug"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/Release"
+    RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_BINARY_DIR}/RelWithDebInfo"
+    RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_BINARY_DIR}/MinSizeRel"
 )
