@@ -116,22 +116,25 @@ private:
         {
             tinygltf::Image img;
             img.name = mcTex.name;
-            if (img.name.empty()) {
-                img.name = "texture_" + std::to_string(texIdx);
-            } else {
-                std::string nameExt = std::filesystem::path(img.name).extension().string();
-                if (!nameExt.empty()) {
-                    img.name = std::filesystem::path(img.name).stem().string();
-                }
-            }
 
             std::vector<uint8_t> rawBytes;
             std::string mime;
+            std::string imageFileName;
 
             if (mcTex.embedded && !mcTex.embeddedData.empty())
             {
                 rawBytes = mcTex.embeddedData;
                 mime     = mcTex.mimeType.empty() ? "image/png" : mcTex.mimeType;
+                if (!img.name.empty()) {
+                    std::filesystem::path namePath(img.name);
+                    if (!namePath.has_extension()) {
+                        std::string ext = "png";
+                        if (mime == "image/jpeg") ext = "jpg";
+                        else if (mime == "image/webp") ext = "webp";
+                        img.name = img.name + "." + ext;
+                    }
+                    imageFileName = std::filesystem::path(img.name).filename().string();
+                }
             }
             else if (!mcTex.uri.empty())
             {
@@ -142,6 +145,18 @@ private:
                         std::istreambuf_iterator<char>(ifs), {});
                     mime = MimeTypeFromPath(mcTex.uri);
                 }
+                imageFileName = std::filesystem::path(mcTex.uri).filename().string();
+            }
+
+            if (imageFileName.empty() && !img.name.empty()) {
+                imageFileName = std::filesystem::path(img.name).filename().string();
+            }
+            if (imageFileName.empty()) {
+                std::string ext = "png";
+                if (mime == "image/jpeg") ext = "jpg";
+                else if (mime == "image/webp") ext = "webp";
+                imageFileName = "texture_" + std::to_string(texIdx) + "." + ext;
+                img.name = imageFileName;
             }
 
             if (!rawBytes.empty())
@@ -151,12 +166,15 @@ private:
                 {
                     int bvIdx      = PushImageBufferView(rawBytes);
                     img.bufferView = bvIdx;
+                    img.uri.clear();
+                    img.name = imageFileName;
                 }
                 else
                 {
                     img.image  = rawBytes;
                     img.as_is  = true;
                     img.bufferView = -1;
+                    img.uri = imageFileName;
                 }
             }
             else if (!mcTex.uri.empty())

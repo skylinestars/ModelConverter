@@ -114,6 +114,32 @@ static void FillMetadataFromFbx(FbxScene* fbxScene, Scene& mcScene)
 }
 
 // ============================================================
+// GetOrCreateTexture
+// ============================================================
+ObjectID FbxSceneConverter::GetOrCreateTexture(FbxFileTexture* fbxTex, Scene& mcScene)
+{
+    if (!fbxTex) return INVALID_ID;
+
+    auto it = m_texCache.find(fbxTex);
+    if (it != m_texCache.end()) return it->second;
+
+    Texture& mcTex = mcScene.AddTexture();
+
+    // 使用贴图文件名（不含路径，但保留扩展名）作为纹理名称
+    std::string fileName = fbxTex->GetFileName();
+    std::filesystem::path texPath(fileName);
+    std::string baseName = texPath.filename().string();
+    if (baseName.empty()) {
+        baseName = fbxTex->GetName();
+    }
+    mcTex.name = baseName;
+    mcTex.uri  = fileName;
+
+    m_texCache[fbxTex] = mcTex.id;
+    return mcTex.id;
+}
+
+// ============================================================
 // GetOrCreateMaterial
 // ============================================================
 ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scene& mcScene)
@@ -155,10 +181,7 @@ ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scen
             auto* fbxTex = prop.GetSrcObject<FbxFileTexture>(0);
             if (fbxTex)
             {
-                Texture& mcTex = mcScene.AddTexture();
-                mcTex.name = fbxTex->GetName();
-                mcTex.uri  = fbxTex->GetFileName();
-                mcMat.baseColorTexture.textureId = mcTex.id;
+                mcMat.baseColorTexture.textureId = GetOrCreateTexture(fbxTex, mcScene);
             }
         }
     }

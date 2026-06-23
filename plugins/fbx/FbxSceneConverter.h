@@ -11,6 +11,7 @@ class FbxScene;
 class FbxNode;
 class FbxMesh;
 class FbxSurfaceMaterial;
+class FbxFileTexture;
 } // namespace fbxsdk
 
 namespace mc {
@@ -34,9 +35,12 @@ private:
     ObjectID ConvertMesh(fbxsdk::FbxNode* fbxNode, Scene& mcScene);
 
     ObjectID GetOrCreateMaterial(fbxsdk::FbxSurfaceMaterial* fbxMat, Scene& mcScene);
+    ObjectID GetOrCreateTexture(fbxsdk::FbxFileTexture* fbxTex, Scene& mcScene);
 
     // FbxSurfaceMaterial 指针 -> mc ObjectID 缓存
     std::unordered_map<fbxsdk::FbxSurfaceMaterial*, mc::ObjectID> m_matCache;
+    // FbxFileTexture 指针 -> mc ObjectID 缓存（去重）
+    std::unordered_map<fbxsdk::FbxFileTexture*, mc::ObjectID> m_texCache;
 };
 
 } // namespace mc
