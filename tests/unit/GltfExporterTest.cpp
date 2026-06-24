@@ -143,7 +143,7 @@ protected:
 
         m_tmpGlb = std::string(CMAKE_TESTS_DATA_DIR) + "/out_test.glb";
         m_tmpGltf = std::string(CMAKE_TESTS_DATA_DIR) + "/out_test.gltf";
-        m_outGlb  = std::string(CMAKE_TESTS_DATA_DIR) + "/out.gltf";
+        m_outGlb  = std::string(CMAKE_TESTS_DATA_DIR) + "/out.glb";
     }
 
     void TearDown() override

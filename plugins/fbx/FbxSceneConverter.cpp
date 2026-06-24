@@ -1,12 +1,15 @@
 #include "FbxSceneConverter.h"
+#include "FbxMeshHelper.h"
 #include "mc/core/Mesh.h"
 #include "mc/core/Material.h"
 #include "mc/core/Texture.h"
 #include "mc/core/Node.h"
+#include "mc/core/Animation.h"
 #include "mc/common/Logger.h"
 
 #include <fbxsdk.h>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <string>
 #include <sstream>
@@ -215,136 +218,68 @@ ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scen
 ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
 {
     FbxMesh* fbxMesh = fbxNode->GetMesh();
-    if (!fbxMesh) return INVALID_ID;
+    if (!fbxMesh)
+        return INVALID_ID;
 
-    // 确保已三角化
-    if (!fbxMesh->IsTriangleMesh())
-    {
-        FbxGeometryConverter conv(fbxMesh->GetScene()->GetFbxManager());
-        FbxNodeAttribute* attr = conv.Triangulate(fbxMesh, true);
-        if (attr && attr->Is<FbxMesh>())
-            fbxMesh = static_cast<FbxMesh*>(attr);
-    }
+    int ctrlCount = fbxMesh->GetControlPointsCount();
+    int polyCount = fbxMesh->GetPolygonCount();
+    if (ctrlCount == 0 || polyCount == 0)
+        return INVALID_ID;
 
+    // 扇形三角化 + 顶点解包（委托给 FbxMeshHelper）
     Mesh& mcMesh = mcScene.AddMesh();
     mcMesh.name = fbxNode->GetName();
 
-    int polyCount = fbxMesh->GetPolygonCount();
-    int ctrlCount = fbxMesh->GetControlPointsCount();
-    FbxVector4* ctrlPts = fbxMesh->GetControlPoints();
-    FbxAMatrix geoTrs = GetGeometricTransform(fbxNode);
-
-    // 获取法线元素
-    FbxGeometryElementNormal* normalElem = fbxMesh->GetElementNormal(0);
-    // 获取 UV 元素
-    FbxGeometryElementUV* uvElem = fbxMesh->GetElementUV(0);
-    if (uvElem) mcMesh.uvs.emplace_back();
-
-    // 展开为非索引顶点（对齐法线/UV 映射模式）
-    std::unordered_map<uint64_t, uint32_t> vertexMap;
-
-    auto packKey = [](int ctrl, int poly, int vert) -> uint64_t {
-        return (uint64_t)ctrl << 32 | (uint64_t)poly << 16 | (uint64_t)vert;
-    };
-
-    // Section per material — 用 ordered map 保证按 matIdx 顺序遍历
-    // 同时记录每个 section 在 indices 数组中的起始偏移（按写入顺序确定）
-    std::map<int, MeshSection> sectionMap;
-    std::map<int, uint32_t>   sectionStart;  // matIdx -> indices 写入起始位置
-
-    int vertexId = 0;  // global vertex counter for ByPolygonVertex access
-    for (int p = 0; p < polyCount; ++p)
+    VoidResult triResult = FanTriangulateMesh(fbxMesh, GetGeometricTransform(fbxNode), mcMesh);
+    if (!triResult.ok)
     {
-        int matIdx = 0;
-        FbxGeometryElementMaterial* matElem = fbxMesh->GetElementMaterial(0);
-        if (matElem)
-        {
-            if (matElem->GetMappingMode() == FbxGeometryElement::eByPolygon)
-                matIdx = matElem->GetIndexArray().GetAt(p);
-        }
-
-        for (int v = 0; v < 3; ++v, ++vertexId)
-        {
-            int ctrlIdx = fbxMesh->GetPolygonVertex(p, v);
-
-            // Normal
-            FbxVector4 normal(0, 1, 0, 0);
-            if (normalElem)
-            {
-                int ni = (normalElem->GetMappingMode() == FbxGeometryElement::eByControlPoint)
-                         ? ctrlIdx : vertexId;
-                if (normalElem->GetReferenceMode() == FbxGeometryElement::eIndexToDirect)
-                    ni = normalElem->GetIndexArray().GetAt(ni);
-                normal = normalElem->GetDirectArray().GetAt(ni);
-            }
-
-            // UV
-            FbxVector2 uv(0, 0);
-            if (uvElem)
-            {
-                int ui = (uvElem->GetMappingMode() == FbxGeometryElement::eByControlPoint)
-                         ? ctrlIdx : vertexId;
-                if (uvElem->GetReferenceMode() != FbxGeometryElement::eDirect)
-                    ui = uvElem->GetIndexArray().GetAt(ui);
-                uv = uvElem->GetDirectArray().GetAt(ui);
-            }
-
-            // FBX UV V 轴与 GLTF/OpenGL 相反，翻转 V
-            double flippedV = 1.0 - uv[1];
-
-            uint32_t outIdx;
-            uint64_t key = packKey(ctrlIdx, p, v);
-            auto mapIt = vertexMap.find(key);
-            if (mapIt != vertexMap.end())
-            {
-                outIdx = mapIt->second;
-            }
-            else
-            {
-                outIdx = (uint32_t)mcMesh.positions.size();
-                FbxVector4& cp = ctrlPts[ctrlIdx];
-                FbxVector4 p = geoTrs.MultT(cp);
-
-                FbxVector4 n = geoTrs.MultR(normal);
-                const double nLen = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
-                if (nLen > 1e-12)
-                {
-                    n[0] /= nLen;
-                    n[1] /= nLen;
-                    n[2] /= nLen;
-                }
-
-                mcMesh.positions.push_back({(float)p[0], (float)p[1], (float)p[2]});
-                mcMesh.normals.push_back({(float)n[0], (float)n[1], (float)n[2]});
-                if (uvElem)
-                    mcMesh.uvs[0].push_back({(float)uv[0], (float)flippedV});
-                vertexMap[key] = outIdx;
-            }
-
-            // 记录该 section 在 indices 中的起始偏移（首次写入时）
-            if (sectionMap.find(matIdx) == sectionMap.end())
-                sectionStart[matIdx] = (uint32_t)mcMesh.indices.size();
-
-            mcMesh.indices.push_back(outIdx);
-            sectionMap[matIdx].indexCount++;
-        }
+        Logger::Instance().LogWarn(
+            std::string("FbxSceneConverter: FanTriangulateMesh failed for \"") +
+            fbxNode->GetName() + "\": " + triResult.error);
+        return INVALID_ID;
     }
 
-    // 构建 sections：indexOffset 来自实际写入位置，而非事后累加
+    // ---- Section 构建（按 material 分组）----
+    std::map<int, MeshSection> sectionMap;
+    std::map<int, uint32_t>   sectionStart;
+
+    FbxGeometryElementMaterial* matElem = fbxMesh->GetElementMaterial(0);
+    int polyCount2 = fbxMesh->GetPolygonCount();
+
+    // 计算 indexOffset（三角形级别的索引偏移）
+    uint32_t indexCursor = 0;
+    for (int p = 0; p < polyCount2; ++p)
+    {
+        int polySize = fbxMesh->GetPolygonSize(p);
+        if (polySize < 3) continue;
+
+        int matIdx = 0;
+        if (matElem && matElem->GetMappingMode() == FbxGeometryElement::eByPolygon)
+            matIdx = matElem->GetIndexArray().GetAt(p);
+
+        int triCount = polySize - 2;     // N 边形产生 N-2 个三角形
+        uint32_t idxPerTri = 3;
+
+        if (sectionMap.find(matIdx) == sectionMap.end())
+            sectionStart[matIdx] = indexCursor;
+
+        sectionMap[matIdx].indexOffset = sectionStart[matIdx];
+        sectionMap[matIdx].indexCount  += triCount * idxPerTri;
+        indexCursor += triCount * idxPerTri;
+    }
+
     for (auto& [matIdx, sec] : sectionMap)
     {
-        sec.indexOffset = sectionStart[matIdx];
         if (matIdx < fbxNode->GetMaterialCount())
             sec.materialId = GetOrCreateMaterial(fbxNode->GetMaterial(matIdx), mcScene);
         mcMesh.sections.push_back(sec);
     }
 
-    // 若无 section 信息，添加一个默认 section
     if (mcMesh.sections.empty() && !mcMesh.indices.empty())
     {
         MeshSection sec;
         sec.indexOffset = 0;
-        sec.indexCount  = (uint32_t)mcMesh.indices.size();
+        sec.indexCount  = static_cast<uint32_t>(mcMesh.indices.size());
         if (fbxNode->GetMaterialCount() > 0)
             sec.materialId = GetOrCreateMaterial(fbxNode->GetMaterial(0), mcScene);
         mcMesh.sections.push_back(sec);
@@ -363,6 +298,12 @@ void FbxSceneConverter::ConvertNode(FbxNode* fbxNode, Scene& mcScene, mc::Object
     mc::ObjectID nodeId = mcScene.AddNode().id;
     mc::Node* mcNode = mcScene.FindNode(nodeId);
     mcNode->name = fbxNode->GetName();
+
+    // 记录 FbxNode -> mc ObjectID 映射，供动画转换使用
+    m_nodeMap[fbxNode] = nodeId;
+
+    // ... rest remains the same
+
 
     // Local transform（不包含 Geometric TRS）
     // Geometric TRS 仅作用于当前节点几何体，不应影响子节点层级变换。
@@ -388,12 +329,186 @@ void FbxSceneConverter::ConvertNode(FbxNode* fbxNode, Scene& mcScene, mc::Object
     {
         ObjectID meshId = ConvertMesh(fbxNode, mcScene);
         if (meshId != INVALID_ID)
+        {
             mcNode->meshIds.push_back(meshId);
+            m_meshNodeMap[meshId] = fbxNode;  // Phase15: 骨骼绑定用
+        }
     }
 
     // 递归子节点
     for (int i = 0; i < fbxNode->GetChildCount(); ++i)
         ConvertNode(fbxNode->GetChild(i), mcScene, nodeId);
+}
+
+// ============================================================
+// ConvertAnimStack（Phase14）
+// ============================================================
+void FbxSceneConverter::ConvertAnimStack(FbxAnimStack* animStack,
+                                          FbxScene* fbxScene,
+                                          Scene& mcScene)
+{
+    if (!animStack) return;
+
+    AnimationClip clip;
+    clip.id   = mcScene.AllocateId();
+    clip.name = animStack->GetName();
+
+    // 设置动画评估上下文
+    fbxScene->SetCurrentAnimationStack(animStack);
+    FbxAnimEvaluator* evaluator = fbxScene->GetAnimationEvaluator();
+
+    // 获取动画时间范围
+    FbxTimeSpan timeSpan = animStack->GetLocalTimeSpan();
+    FbxTime startTime = timeSpan.GetStart();
+    FbxTime stopTime  = timeSpan.GetStop();
+
+    clip.startTime = startTime.GetSecondDouble();
+    clip.endTime   = stopTime.GetSecondDouble();
+
+    if (clip.Duration() <= 0.0)
+    {
+        Logger::Instance().LogWarn(
+            "FbxSceneConverter: animation \"" + clip.name + "\" has zero duration, skipped.");
+        return;
+    }
+
+    // 遍历所有已映射的节点，收集动画数据
+    for (auto& [fbxNode, mcNodeId] : m_nodeMap)
+    {
+        // 检查该节点是否有任何动画曲线
+        FbxAnimLayer* layer = animStack->GetMember<FbxAnimLayer>(0);
+        if (!layer) continue;
+
+        FbxAnimCurve* curveTx = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveTy = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveTz = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+        FbxAnimCurve* curveRx = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveRy = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveRz = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+        FbxAnimCurve* curveSx = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveSy = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveSz = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+        // 判断是否有任何动画曲线
+        bool hasTranslate = (curveTx || curveTy || curveTz);
+        bool hasRotate    = (curveRx || curveRy || curveRz);
+        bool hasScale     = (curveSx || curveSy || curveSz);
+
+        if (!hasTranslate && !hasRotate && !hasScale)
+            continue;
+
+        // 收集该节点所有动画曲线上的唯一时间点
+        std::set<FbxTime> uniqueTimes;
+        auto collectTimes = [&](FbxAnimCurve* curve) {
+            if (!curve) return;
+            int keyCount = curve->KeyGetCount();
+            for (int k = 0; k < keyCount; ++k)
+                uniqueTimes.insert(curve->KeyGetTime(k));
+        };
+
+        collectTimes(curveTx); collectTimes(curveTy); collectTimes(curveTz);
+        collectTimes(curveRx); collectTimes(curveRy); collectTimes(curveRz);
+        collectTimes(curveSx); collectTimes(curveSy); collectTimes(curveSz);
+
+        if (uniqueTimes.empty()) continue;
+
+        NodeAnimation nodeAnim;
+        nodeAnim.nodeId = mcNodeId;
+
+        // 判断插值模式：取第一条有效曲线的插值类型
+        auto getInterp = [](FbxAnimCurve* c) -> AnimationInterpolation {
+            if (!c || c->KeyGetCount() == 0)
+                return AnimationInterpolation::Linear;
+            FbxAnimCurveDef::EInterpolationType it = c->KeyGetInterpolation(0);
+            switch (it) {
+                case FbxAnimCurveDef::eInterpolationConstant:
+                    return AnimationInterpolation::Step;
+                case FbxAnimCurveDef::eInterpolationCubic:
+                    return AnimationInterpolation::CubicSpline;
+                default:
+                    return AnimationInterpolation::Linear;
+            }
+        };
+
+        AnimationInterpolation tInterp = getInterp(curveTx ? curveTx : (curveTy ? curveTy : curveTz));
+        AnimationInterpolation rInterp = getInterp(curveRx ? curveRx : (curveRy ? curveRy : curveRz));
+        AnimationInterpolation sInterp = getInterp(curveSx ? curveSx : (curveSy ? curveSy : curveSz));
+
+        if (hasTranslate)
+        {
+            nodeAnim.translation.interpolation = tInterp;
+            for (const FbxTime& t : uniqueTimes)
+            {
+                FbxAMatrix evalMatrix = evaluator->GetNodeLocalTransform(fbxNode, t);
+                FbxVector4 trans = evalMatrix.GetT();
+
+                KeyFrame<Vec3> kf;
+                kf.time  = t.GetSecondDouble();
+                kf.value = Vec3((float)trans[0], (float)trans[1], (float)trans[2]);
+                nodeAnim.translation.keys.push_back(kf);
+            }
+        }
+
+        if (hasRotate)
+        {
+            nodeAnim.rotation.interpolation = rInterp;
+            for (const FbxTime& t : uniqueTimes)
+            {
+                FbxAMatrix evalMatrix = evaluator->GetNodeLocalTransform(fbxNode, t);
+                FbxQuaternion q = evalMatrix.GetQ();
+
+                KeyFrame<Quaternion> kf;
+                kf.time  = t.GetSecondDouble();
+                kf.value = Quaternion((float)q[0], (float)q[1], (float)q[2], (float)q[3]);
+                nodeAnim.rotation.keys.push_back(kf);
+            }
+        }
+
+        if (hasScale)
+        {
+            nodeAnim.scale.interpolation = sInterp;
+            for (const FbxTime& t : uniqueTimes)
+            {
+                FbxAMatrix evalMatrix = evaluator->GetNodeLocalTransform(fbxNode, t);
+                FbxVector4 scale = evalMatrix.GetS();
+
+                KeyFrame<Vec3> kf;
+                kf.time  = t.GetSecondDouble();
+                kf.value = Vec3((float)scale[0], (float)scale[1], (float)scale[2]);
+                nodeAnim.scale.keys.push_back(kf);
+            }
+        }
+
+        clip.nodeChannels.push_back(std::move(nodeAnim));
+    }
+
+    if (!clip.nodeChannels.empty())
+        mcScene.animations.push_back(std::move(clip));
+}
+
+// ============================================================
+// ConvertAnimations（Phase14）
+// ============================================================
+void FbxSceneConverter::ConvertAnimations(FbxScene* fbxScene, Scene& mcScene)
+{
+    int animStackCount = fbxScene->GetSrcObjectCount<FbxAnimStack>();
+    if (animStackCount == 0) return;
+
+    Logger::Instance().LogInfo(
+        "FbxSceneConverter: found " + std::to_string(animStackCount) + " animation stack(s).");
+
+    for (int i = 0; i < animStackCount; ++i)
+    {
+        FbxAnimStack* animStack = fbxScene->GetSrcObject<FbxAnimStack>(i);
+        if (animStack)
+            ConvertAnimStack(animStack, fbxScene, mcScene);
+    }
+
+    Logger::Instance().LogInfo(
+        "FbxSceneConverter: converted " + std::to_string(mcScene.animations.size()) +
+        " animation clip(s).");
 }
 
 // ============================================================
@@ -416,9 +531,8 @@ VoidResult FbxSceneConverter::Convert(FbxManager* manager, FbxScene* fbxScene, S
         " frontAxisParity=" + mcScene.metadata.custom["frontAxisParity"] +
         " frontAxisSign=" + mcScene.metadata.custom["frontAxisSign"]);
 
-    // 全场景三角化
-    FbxGeometryConverter geomConv(manager);
-    geomConv.Triangulate(fbxScene, true);
+    // 三角化在 ConvertMesh 中按需逐个处理，避免全局 Triangulate
+    // 遍历整个场景时触发 NURBS/Patch 等非 Mesh 几何体导致 SDK 断言崩溃。
 
     FbxNode* root = fbxScene->GetRootNode();
     if (!root)
@@ -429,7 +543,19 @@ VoidResult FbxSceneConverter::Convert(FbxManager* manager, FbxScene* fbxScene, S
     }
 
     for (int i = 0; i < root->GetChildCount(); ++i)
+    {
+        FbxNode* child = root->GetChild(i);
+        Logger::Instance().LogInfo(
+            std::string("FbxSceneConverter: entering root child node \"") +
+            (child ? child->GetName() : "null") + "\"");
         ConvertNode(root->GetChild(i), mcScene, INVALID_ID);
+    }
+
+    // Phase15: 骨骼蒙皮
+    ConvertSkeleton(fbxScene, mcScene);
+
+    // Phase14: 动画转换（须在节点树构建完成之后）
+    ConvertAnimations(fbxScene, mcScene);
 
     Logger::Instance().LogInfo(
         std::string("FbxSceneConverter: converted ") +
@@ -439,6 +565,128 @@ VoidResult FbxSceneConverter::Convert(FbxManager* manager, FbxScene* fbxScene, S
     );
 
     return result;
+}
+
+// ============================================================
+// ConvertSkeleton（Phase15）
+// ============================================================
+void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
+{
+    // 收集所有带 skin 的 mesh
+    for (auto& [meshId, fbxNode] : m_meshNodeMap)
+    {
+        FbxMesh* fbxMesh = fbxNode->GetMesh();
+        if (!fbxMesh) continue;
+
+        // 找 skin deformer
+        int skinCount = fbxMesh->GetDeformerCount(FbxDeformer::eSkin);
+        if (skinCount == 0) continue;
+
+        FbxSkin* skin = FbxCast<FbxSkin>(fbxMesh->GetDeformer(0, FbxDeformer::eSkin));
+        if (!skin) continue;
+
+        int clusterCount = skin->GetClusterCount();
+        if (clusterCount == 0) continue;
+
+        // 创建 Skeleton
+        Skeleton skel;
+        skel.id   = mcScene.AllocateId();
+        skel.name = fbxMesh->GetNode() ? fbxMesh->GetNode()->GetName() : "";
+
+        // 创建 Skin
+        Skin mcSkin;
+        mcSkin.id         = mcScene.AllocateId();
+        mcSkin.meshId     = meshId;
+        mcSkin.skeletonId = skel.id;
+
+        // Bone → 编号映射
+        std::unordered_map<FbxNode*, int> boneIdxMap;
+
+        for (int ci = 0; ci < clusterCount; ++ci)
+        {
+            FbxCluster* cluster = skin->GetCluster(ci);
+            FbxNode*    link    = cluster->GetLink();
+            if (!link) continue;
+
+            // 标记骨骼节点
+            auto nodeIt = m_nodeMap.find(link);
+            if (nodeIt != m_nodeMap.end())
+            {
+                Node* nd = mcScene.FindNode(nodeIt->second);
+                if (nd) nd->type = NodeType::Bone;
+            }
+
+            Bone bone;
+            bone.id   = mcScene.AllocateId();
+            bone.name = link->GetName();
+
+            // inverseBindPose（FbxAMatrix → Matrix4）
+            FbxAMatrix ibp;
+            cluster->GetTransformLinkMatrix(ibp);  // 骨骼的世界矩阵
+            FbxAMatrix geoMatrix;
+            cluster->GetTransformMatrix(geoMatrix); // 网格的世界矩阵
+            FbxAMatrix invBind = geoMatrix.Inverse() * ibp;
+
+            bone.inverseBindPose = ToMatrix4(invBind);
+            bone.parentBoneId = INVALID_ID;
+
+            boneIdxMap[link] = (int)skel.bones.size();
+            skel.bones.push_back(std::move(bone));
+        }
+
+        // 骨骼父子关系（从 FBX hierarchy 推断）
+        for (int ci = 0; ci < clusterCount; ++ci)
+        {
+            FbxCluster* cluster = skin->GetCluster(ci);
+            FbxNode*    link    = cluster->GetLink();
+            if (!link) continue;
+            FbxNode* parentLink = link->GetParent();
+            if (parentLink)
+            {
+                auto pi = boneIdxMap.find(parentLink);
+                auto ci2 = boneIdxMap.find(link);
+                if (pi != boneIdxMap.end() && ci2 != boneIdxMap.end())
+                    skel.bones[ci2->second].parentBoneId = skel.bones[pi->second].id;
+            }
+        }
+
+        mcScene.skeletons.push_back(std::move(skel));
+        mcScene.skins.push_back(std::move(mcSkin));
+
+        // 蒙皮权重
+        Mesh* mcMesh = mcScene.FindMesh(meshId);
+        if (!mcMesh || mcMesh->positions.empty()) continue;
+
+        mcMesh->skinInfluences.resize(mcMesh->positions.size());
+
+        for (int ci = 0; ci < clusterCount; ++ci)
+        {
+            FbxCluster* cluster = skin->GetCluster(ci);
+            FbxNode*    link    = cluster->GetLink();
+            if (!link) continue;
+            auto bi = boneIdxMap.find(link);
+            if (bi == boneIdxMap.end()) continue;
+            int boneIdx = bi->second;
+
+            int idxCount = cluster->GetControlPointIndicesCount();
+            int* indices = cluster->GetControlPointIndices();
+            double* weights = cluster->GetControlPointWeights();
+
+            for (int k = 0; k < idxCount; ++k)
+            {
+                int vtxIdx = indices[k];
+                if (vtxIdx >= (int)mcMesh->skinInfluences.size()) continue;
+                float w = (float)weights[k];
+                if (w > 0.0f)
+                    mcMesh->skinInfluences[vtxIdx].push_back({(uint16_t)boneIdx, w});
+            }
+        }
+    }
+
+    if (!mcScene.skeletons.empty())
+        Logger::Instance().LogInfo(
+            "FbxSceneConverter: converted " + std::to_string(mcScene.skeletons.size()) +
+            " skeleton(s), " + std::to_string(mcScene.skins.size()) + " skin(s).");
 }
 
 } // namespace mc

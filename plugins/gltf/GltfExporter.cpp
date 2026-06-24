@@ -3,6 +3,7 @@
 #include "mc/core/Material.h"
 #include "mc/core/Texture.h"
 #include "mc/core/Node.h"
+#include "mc/core/Animation.h"
 #include "mc/common/Logger.h"
 
 // tinygltf 实现已在 GltfSceneConverter.cpp 中 define，此处只使用声明
@@ -14,6 +15,7 @@
 #include <fstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace mc {
 
@@ -37,7 +39,9 @@ public:
         AddMaterials(scene);
         AddMeshes(scene);
         AddNodes(scene);
+        AddSkins(scene);
         AddScene(scene);
+        AddAnimations(scene);
     }
 
     const std::unordered_map<ObjectID, int>& MeshIdxMap() const { return m_meshIdxMap; }
@@ -222,10 +226,9 @@ private:
 
             gMat.emissiveFactor = {mcMat.emissive.x, mcMat.emissive.y, mcMat.emissive.z};
             gMat.doubleSided    = mcMat.doubleSided;
-            gMat.alphaCutoff    = mcMat.alphaCutoff;
             switch (mcMat.alphaMode)
             {
-                case AlphaMode::Mask:  gMat.alphaMode = "MASK";  break;
+                case AlphaMode::Mask:  gMat.alphaMode = "MASK"; gMat.alphaCutoff = mcMat.alphaCutoff; break;
                 case AlphaMode::Blend: gMat.alphaMode = "BLEND"; break;
                 default:               gMat.alphaMode = "OPAQUE";
             }
@@ -292,6 +295,65 @@ private:
         gMesh.primitives.push_back(std::move(prim));
     }
 
+    // ---- Skins（Phase15）----
+    void AddSkins(const Scene& scene)
+    {
+        if (scene.skeletons.empty() || scene.skins.empty()) return;
+
+        // skeleton/mesh → bone node index 查找
+        std::unordered_map<ObjectID, int> boneNodeIdx;
+        for (size_t i = 0; i < scene.nodes.size(); ++i)
+            boneNodeIdx[scene.nodes[i].id] = (int)i;
+
+        for (const auto& mcSkin : scene.skins)
+        {
+            const Skeleton* skel = nullptr;
+            for (const auto& s : scene.skeletons)
+                if (s.id == mcSkin.skeletonId) { skel = &s; break; }
+            if (!skel || skel->bones.empty()) continue;
+
+            tinygltf::Skin gSkin;
+            gSkin.name = mcSkin.name;
+
+            // joints: gltf node indices (通过 bone.name → node.name)
+            size_t boneCount = skel->bones.size();
+            gSkin.joints.resize(boneCount, INVALID_ID);
+            for (size_t bi = 0; bi < boneCount; ++bi)
+            {
+                for (size_t ni = 0; ni < scene.nodes.size(); ++ni)
+                {
+                    if (scene.nodes[ni].name == skel->bones[bi].name)
+                    { gSkin.joints[bi] = (int)ni; break; }
+                }
+            }
+
+            // skeleton root node（取第一个 joint）
+            if (!gSkin.joints.empty() && gSkin.joints[0] >= 0)
+                gSkin.skeleton = gSkin.joints[0];
+
+            // inverseBindMatrices
+            std::vector<float> ibm(boneCount * 16);
+            for (size_t bi = 0; bi < boneCount; ++bi)
+            {
+                const float* m = skel->bones[bi].inverseBindPose.m;
+                for (int i = 0; i < 16; ++i)
+                    ibm[bi * 16 + i] = m[i];
+            }
+            gSkin.inverseBindMatrices = PushAccessor(
+                ibm.data(), ibm.size() * sizeof(float),
+                TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_MAT4,
+                (int)boneCount, 0);
+
+            m_model.skins.push_back(std::move(gSkin));
+        }
+
+        Logger::Instance().LogInfo(
+            "GltfExporter: exported " + std::to_string(m_model.skins.size()) + " skin(s).");
+    }
+
+    // skin 查找：meshId → gltf skin index (从 AddSkins 填充)
+    std::unordered_map<ObjectID, int> m_skinToMeshIdx;
+
     // ---- Meshes ----
     void AddMeshes(const Scene& scene)
     {
@@ -320,6 +382,38 @@ private:
                              mcMesh.indices, INVALID_ID);
             }
 
+            // Phase15: 蒙皮权重 → JOINTS_0 + WEIGHTS_0
+            if (!mcMesh.skinInfluences.empty())
+            {
+                std::vector<uint16_t> joints;
+                std::vector<float>   weights;
+                joints.reserve(mcMesh.positions.size() * 4);
+                weights.reserve(mcMesh.positions.size() * 4);
+                for (size_t vi = 0; vi < mcMesh.positions.size(); ++vi)
+                {
+                    const auto& infs = vi < mcMesh.skinInfluences.size()
+                                       ? mcMesh.skinInfluences[vi]
+                                       : std::vector<VertexInfluence>{};
+                    for (int c = 0; c < 4; ++c)
+                    {
+                        if (c < (int)infs.size()) { joints.push_back(infs[c].joint); weights.push_back(infs[c].weight); }
+                        else { joints.push_back(0); weights.push_back(0.0f); }
+                    }
+                }
+                int jAcc = PushAccessor(joints.data(), joints.size() * sizeof(uint16_t),
+                                         TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT, TINYGLTF_TYPE_VEC4,
+                                         (int)mcMesh.positions.size(), TINYGLTF_TARGET_ARRAY_BUFFER);
+                int wAcc = PushAccessor(weights.data(), weights.size() * sizeof(float),
+                                         TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC4,
+                                         (int)mcMesh.positions.size(), TINYGLTF_TARGET_ARRAY_BUFFER);
+                // 写入所有 primitive
+                for (auto& prim : gMesh.primitives)
+                {
+                    prim.attributes["JOINTS_0"] = jAcc;
+                    prim.attributes["WEIGHTS_0"] = wAcc;
+                }
+            }
+
             m_meshIdxMap[mcMesh.id] = (int)m_model.meshes.size();
             m_model.meshes.push_back(std::move(gMesh));
         }
@@ -328,13 +422,23 @@ private:
     // ---- Nodes ----
     void AddNodes(const Scene& scene)
     {
+        // Phase15: 查找 skin → mesh 映射
+        std::unordered_map<ObjectID, int> meshSkinIdx;
+        for (size_t i = 0; i < scene.skins.size(); ++i)
+            meshSkinIdx[scene.skins[i].meshId] = (int)i;
+
         for (const auto& mcNode : scene.nodes)
         {
             tinygltf::Node gNode;
             gNode.name = mcNode.name;
             if (!mcNode.meshIds.empty())
+            {
                 if (auto it = m_meshIdxMap.find(mcNode.meshIds[0]); it != m_meshIdxMap.end())
                     gNode.mesh = it->second;
+                // 设置 skin 引用
+                auto si = meshSkinIdx.find(mcNode.meshIds[0]);
+                if (si != meshSkinIdx.end()) gNode.skin = si->second;
+            }
 
             const float* m = mcNode.localMatrix.m;
             bool isIdentity = true;
@@ -358,6 +462,60 @@ private:
         }
     }
 
+    // ---- 辅助：列主序矩阵 → TRS（仅动画节点使用）----
+    static void DecomposeMatrixToTRS(const float* m, tinygltf::Node& gNode)
+    {
+        gNode.translation = {static_cast<double>(m[12]),
+                              static_cast<double>(m[13]),
+                              static_cast<double>(m[14])};
+        float sx = std::sqrt(m[0]*m[0] + m[1]*m[1] + m[2]*m[2]);
+        float sy = std::sqrt(m[4]*m[4] + m[5]*m[5] + m[6]*m[6]);
+        float sz = std::sqrt(m[8]*m[8] + m[9]*m[9] + m[10]*m[10]);
+        gNode.scale = {static_cast<double>(sx), static_cast<double>(sy), static_cast<double>(sz)};
+
+        float r00=m[0]/sx, r01=m[4]/sy, r02=m[8]/sz;
+        float r10=m[1]/sx, r11=m[5]/sy, r12=m[9]/sz;
+        float r20=m[2]/sx, r21=m[6]/sy, r22=m[10]/sz;
+        float trace = r00+r11+r22, qx, qy, qz, qw;
+        if (trace > 0.0f) {
+            float s = std::sqrt(trace+1.0f)*2.0f; qw=0.25f*s;
+            qx=(r21-r12)/s; qy=(r02-r20)/s; qz=(r10-r01)/s;
+        } else if (r00>r11 && r00>r22) {
+            float s = std::sqrt(1.0f+r00-r11-r22)*2.0f; qw=(r21-r12)/s;
+            qx=0.25f*s; qy=(r01+r10)/s; qz=(r02+r20)/s;
+        } else if (r11>r22) {
+            float s = std::sqrt(1.0f+r11-r00-r22)*2.0f; qw=(r02-r20)/s;
+            qx=(r01+r10)/s; qy=0.25f*s; qz=(r12+r21)/s;
+        } else {
+            float s = std::sqrt(1.0f+r22-r00-r11)*2.0f; qw=(r10-r01)/s;
+            qx=(r02+r20)/s; qy=(r12+r21)/s; qz=0.25f*s;
+        }
+        float qLen = std::sqrt(qx*qx+qy*qy+qz*qz+qw*qw);
+        if (qLen > 1e-6f) { qx/=qLen; qy/=qLen; qz/=qLen; qw/=qLen; }
+        else { qx=0.0f; qy=0.0f; qz=0.0f; qw=1.0f; }
+        gNode.rotation = {static_cast<double>(qx),static_cast<double>(qy),
+                           static_cast<double>(qz),static_cast<double>(qw)};
+    }
+
+    // 将被动画 channel 引用的节点从 matrix 改为 TRS（Gltf 规范要求）
+    void FixAnimatedNodeMatrices()
+    {
+        std::unordered_set<int> animatedNodes;
+        for (const auto& anim : m_model.animations)
+            for (const auto& ch : anim.channels)
+                animatedNodes.insert(ch.target_node);
+        for (int idx : animatedNodes)
+        {
+            auto& node = m_model.nodes[idx];
+            if (node.matrix.empty()) continue;
+            std::vector<double> mat = std::move(node.matrix);
+            node.matrix.clear();
+            float mf[16];
+            for (int i=0;i<16;++i) mf[i] = static_cast<float>(mat[i]);
+            DecomposeMatrixToTRS(mf, node);
+        }
+    }
+
     // ---- Scene ----
     void AddScene(const Scene& scene)
     {
@@ -368,6 +526,192 @@ private:
                 gScene.nodes.push_back(it->second);
         m_model.scenes.push_back(std::move(gScene));
         m_model.defaultScene = 0;
+    }
+
+    // ---- Animations（Phase14）----
+    void AddAnimations(const Scene& scene)
+    {
+        for (const auto& clip : scene.animations)
+        {
+            if (clip.nodeChannels.empty() && clip.morphChannels.empty())
+                continue;
+
+            tinygltf::Animation gAnim;
+            gAnim.name = clip.name;
+
+            // 遍历所有 NodeAnimation 通道
+            for (const auto& nodeAnim : clip.nodeChannels)
+            {
+                auto nodeIt = m_nodeIdxMap.find(nodeAnim.nodeId);
+                if (nodeIt == m_nodeIdxMap.end()) continue;
+                int targetNodeIdx = nodeIt->second;
+
+                // Translation
+                if (!nodeAnim.translation.keys.empty())
+                    AddChannel(gAnim, nodeAnim.translation, targetNodeIdx, "translation");
+
+                // Rotation
+                if (!nodeAnim.rotation.keys.empty())
+                    AddChannel(gAnim, nodeAnim.rotation, targetNodeIdx, "rotation");
+
+                // Scale
+                if (!nodeAnim.scale.keys.empty())
+                    AddChannel(gAnim, nodeAnim.scale, targetNodeIdx, "scale");
+            }
+
+            if (!gAnim.channels.empty())
+                m_model.animations.push_back(std::move(gAnim));
+        }
+
+        // 修复：动画 channel 节点不能同时有 matrix 属性，改为 TRS
+        FixAnimatedNodeMatrices();
+
+        if (!scene.animations.empty())
+        {
+            Logger::Instance().LogInfo(
+                "GltfExporter: exported " + std::to_string(m_model.animations.size()) +
+                " animation clip(s).");
+        }
+    }
+
+private:
+    // 将 TrackVec3 写入 sampler + channel
+    void AddChannel(tinygltf::Animation& gAnim,
+                    const TrackVec3& track,
+                    int targetNodeIdx,
+                    const std::string& path)
+    {
+        if (track.keys.empty()) return;
+
+        // 构建时间戳数组
+        std::vector<float> times;
+        times.reserve(track.keys.size());
+        for (const auto& kf : track.keys)
+            times.push_back(static_cast<float>(kf.time));
+
+        // 构建值数组
+        std::vector<float> values;
+        size_t perFrame = (track.interpolation == AnimationInterpolation::CubicSpline) ? 9 : 3;
+        values.reserve(track.keys.size() * perFrame);
+
+        for (const auto& kf : track.keys)
+        {
+            if (track.interpolation == AnimationInterpolation::CubicSpline)
+            {
+                values.push_back(kf.inTan.x);
+                values.push_back(kf.inTan.y);
+                values.push_back(kf.inTan.z);
+            }
+            values.push_back(kf.value.x);
+            values.push_back(kf.value.y);
+            values.push_back(kf.value.z);
+            if (track.interpolation == AnimationInterpolation::CubicSpline)
+            {
+                values.push_back(kf.outTan.x);
+                values.push_back(kf.outTan.y);
+                values.push_back(kf.outTan.z);
+            }
+        }
+
+        int inputAcc = PushAccessor(
+            times.data(), times.size() * sizeof(float),
+            TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_SCALAR,
+            (int)times.size(), 0,
+            {static_cast<double>(times.front())},
+            {static_cast<double>(times.back())});
+
+        int outputAcc = PushAccessor(
+            values.data(), values.size() * sizeof(float),
+            TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3,
+            (int)track.keys.size(), 0);
+
+        tinygltf::AnimationSampler sampler;
+        sampler.input         = inputAcc;
+        sampler.output        = outputAcc;
+        sampler.interpolation = InterpToString(track.interpolation);
+        int samplerIdx = (int)gAnim.samplers.size();
+        gAnim.samplers.push_back(std::move(sampler));
+
+        tinygltf::AnimationChannel channel;
+        channel.sampler       = samplerIdx;
+        channel.target_node   = targetNodeIdx;
+        channel.target_path   = path;
+        gAnim.channels.push_back(std::move(channel));
+    }
+
+    // 将 TrackQuat 写入 sampler + channel
+    void AddChannel(tinygltf::Animation& gAnim,
+                    const TrackQuat& track,
+                    int targetNodeIdx,
+                    const std::string& path)
+    {
+        if (track.keys.empty()) return;
+
+        std::vector<float> times;
+        times.reserve(track.keys.size());
+        for (const auto& kf : track.keys)
+            times.push_back(static_cast<float>(kf.time));
+
+        std::vector<float> values;
+        size_t perFrame = (track.interpolation == AnimationInterpolation::CubicSpline) ? 12 : 4;
+        values.reserve(track.keys.size() * perFrame);
+
+        for (const auto& kf : track.keys)
+        {
+            if (track.interpolation == AnimationInterpolation::CubicSpline)
+            {
+                values.push_back(kf.inTan.x);
+                values.push_back(kf.inTan.y);
+                values.push_back(kf.inTan.z);
+                values.push_back(kf.inTan.w);
+            }
+            values.push_back(kf.value.x);
+            values.push_back(kf.value.y);
+            values.push_back(kf.value.z);
+            values.push_back(kf.value.w);
+            if (track.interpolation == AnimationInterpolation::CubicSpline)
+            {
+                values.push_back(kf.outTan.x);
+                values.push_back(kf.outTan.y);
+                values.push_back(kf.outTan.z);
+                values.push_back(kf.outTan.w);
+            }
+        }
+
+        int inputAcc = PushAccessor(
+            times.data(), times.size() * sizeof(float),
+            TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_SCALAR,
+            (int)times.size(), 0,
+            {static_cast<double>(times.front())},
+            {static_cast<double>(times.back())});
+
+        int outputAcc = PushAccessor(
+            values.data(), values.size() * sizeof(float),
+            TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC4,
+            (int)track.keys.size(), 0);
+
+        tinygltf::AnimationSampler sampler;
+        sampler.input         = inputAcc;
+        sampler.output        = outputAcc;
+        sampler.interpolation = InterpToString(track.interpolation);
+        int samplerIdx = (int)gAnim.samplers.size();
+        gAnim.samplers.push_back(std::move(sampler));
+
+        tinygltf::AnimationChannel channel;
+        channel.sampler       = samplerIdx;
+        channel.target_node   = targetNodeIdx;
+        channel.target_path   = path;
+        gAnim.channels.push_back(std::move(channel));
+    }
+
+    static const char* InterpToString(AnimationInterpolation interp)
+    {
+        switch (interp)
+        {
+            case AnimationInterpolation::Step:        return "STEP";
+            case AnimationInterpolation::CubicSpline: return "CUBICSPLINE";
+            default:                                   return "LINEAR";
+        }
     }
 };
 

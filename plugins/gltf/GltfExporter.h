@@ -8,7 +8,7 @@ namespace mc {
 // GltfExporter
 // ============================================================
 // 将 mc::Scene 导出为 GLTF 2.0（.gltf ASCII 或 .glb 二进制）。
-// Phase11 范围：静态模型 Node / Mesh / Material / Texture。
+// Phase11+14 范围：Node / Mesh / Material / Texture / Animation（TRS）。
 
 class GltfExporter : public IExporter
 {

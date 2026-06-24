@@ -7,9 +7,8 @@ namespace mc {
 // ============================================================
 // FbxExporter
 // ============================================================
-// 将 mc::Scene 导出为 FBX 静态模型（ASCII 或 Binary）。
-// Phase12 范围：Node / Mesh / Material。
-// 禁止：Animation / Skeleton / Skin / BlendShape。
+// 将 mc::Scene 导出为 FBX（ASCII 或 Binary）。
+// Phase12+14 范围：Node / Mesh / Material / Animation（TRS）。
 
 class FbxExporter : public IExporter
 {

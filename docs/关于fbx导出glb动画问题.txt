@@ -1,0 +1,332 @@
+Running main() from F:\WangLuProject\3DExchange\thirdparty\assimp-6.0.5\contrib\googletest\googletest\src\gtest_main.cc
+[==========] Running 2 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from GltfExporterTest
+[ RUN      ] GltfExporterTest.ExportFbx_ToGlb_Succeeds
+[INFO] FbxSceneConverter: metadata unit=mm unitScale=0.001000 upAxis=1 frontAxis=2 handedness=1 upAxisSign=1 frontAxisParity=2 frontAxisSign=1
+[INFO] FbxSceneConverter: entering root child node "arch75_034_002"
+[INFO] FbxSceneConverter: mesh "arch75_034_002" ctrl=1955 poly=1716 鈫?vtx=6576 idx=9432 posEmpty=no
+[INFO] FbxSceneConverter: entering root child node "arch75_034_004"
+[INFO] FbxSceneConverter: mesh "arch75_034_004" ctrl=648 poly=595 鈫?vtx=2376 idx=3558 posEmpty=no
+[INFO] FbxSceneConverter: entering root child node "arch75_034_003"
+[INFO] FbxSceneConverter: mesh "arch75_034_003" ctrl=98 poly=99 鈫?vtx=374 idx=528 posEmpty=no
+[INFO] FbxSceneConverter: entering root child node "arch75_034_001"
+[INFO] FbxSceneConverter: mesh "arch75_034_001" ctrl=2685 poly=4385 鈫?vtx=13155 idx=13155 posEmpty=no
+[INFO] FbxSceneConverter: converted 4 mesh(es), 1 material(s), 1 texture(s).
+[INFO] UnitConvertPass: scale factor = 0.001000
+
+[FBX Source] meshes=4 materials=1 textures=1 nodes=4
+  metadata: unit=custom unitScale=1e-06 upAxis=1 handedness=1
+  mesh[arch75_034_002] verts=6576 indices=9432 sections=1 sec0(off=0,cnt=9432)
+  mesh[arch75_034_004] verts=2376 indices=3558 sections=1 sec0(off=0,cnt=3558)
+  mesh[arch75_034_003] verts=374 indices=528 sections=1 sec0(off=0,cnt=528)
+  mesh[arch75_034_001] verts=13155 indices=13155 sections=1 sec0(off=0,cnt=13155)
+  tex[arch75_034_diffuse.jpg] uri="F:\\WangLuProject\\3DExchange\\tests\\data\\lz.fbm/arch75_034_diffuse.jpg" embedded=0 dataBytes=0
+[INFO] GltfExporter: exported 4 mesh(es), 1 material(s) -> F:/WangLuProject/3DExchange/tests/data/out.glb
+[GLB Output] F:/WangLuProject/3DExchange/tests/data/out.glb
+  meshes=4 materials=1 textures=1 nodes=4 fileSize=2496644 bytes
+[       OK ] GltfExporterTest.ExportFbx_ToGlb_Succeeds (925 ms)
+[----------] 1 test from GltfExporterTest (925 ms total)
+
+[----------] 1 test from GltfAnimationExportTest
+[ RUN      ] GltfAnimationExportTest.FbxToGlb_RoundTrip_AnimationClipsMatch
+[INFO] FbxSceneConverter: metadata unit=cm unitScale=0.010000 upAxis=1 frontAxis=2 handedness=1 upAxisSign=1 frontAxisParity=2 frontAxisSign=1
+[INFO] FbxSceneConverter: entering root child node "main"
+[INFO] FbxSceneConverter: mesh "top" ctrl=1777 poly=1752 鈫?vtx=7058 idx=10662 posEmpty=no
+[INFO] FbxSceneConverter: mesh "left_1" ctrl=70 poly=68 鈫?vtx=272 idx=408 posEmpty=no
+[INFO] FbxSceneConverter: mesh "right_3" ctrl=84 poly=82 鈫?vtx=328 idx=492 posEmpty=no
+[INFO] FbxSceneConverter: mesh "middle_2" ctrl=210 poly=208 鈫?vtx=832 idx=1248 posEmpty=no
+[INFO] FbxSceneConverter: mesh "inside_1" ctrl=233 poly=214 鈫?vtx=890 idx=1386 posEmpty=no
+[INFO] FbxSceneConverter: mesh "ramka" ctrl=1190 poly=1190 鈫?vtx=4760 idx=7140 posEmpty=no
+[INFO] FbxSceneConverter: mesh "back" ctrl=193 poly=190 鈫?vtx=760 idx=1140 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_1" ctrl=624 poly=602 鈫?vtx=2448 idx=3732 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_2" ctrl=648 poly=626 鈫?vtx=2544 idx=3876 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_3" ctrl=768 poly=746 鈫?vtx=3024 idx=4596 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_4" ctrl=648 poly=626 鈫?vtx=2544 idx=3876 posEmpty=no
+[INFO] FbxSceneConverter: mesh "belka_r" ctrl=460 poly=462 鈫?vtx=1840 idx=2748 posEmpty=no
+[INFO] FbxSceneConverter: mesh "belka_r.001" ctrl=460 poly=462 鈫?vtx=1840 idx=2748 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube" ctrl=636 poly=636 鈫?vtx=2540 idx=3804 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.001" ctrl=636 poly=636 鈫?vtx=2540 idx=3804 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.100" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.100" ctrl=128 poly=114 鈫?vtx=480 idx=756 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.101" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.101" ctrl=64 poly=50 鈫?vtx=224 idx=372 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.102" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.102" ctrl=64 poly=50 鈫?vtx=224 idx=372 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.103" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.103" ctrl=64 poly=50 鈫?vtx=224 idx=372 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.002" ctrl=32 poly=20 鈫?vtx=96 idx=168 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.003" ctrl=660 poly=601 鈫?vtx=2437 idx=3705 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.011" ctrl=88 poly=78 鈫?vtx=320 idx=492 posEmpty=no
+[INFO] FbxSceneConverter: mesh "moga_r" ctrl=24 poly=12 鈫?vtx=48 idx=72 posEmpty=no
+[INFO] FbxSceneConverter: mesh "moga_r.001" ctrl=24 poly=12 鈫?vtx=48 idx=72 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol" ctrl=202 poly=188 鈫?vtx=700 idx=972 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.001" ctrl=216 poly=264 鈫?vtx=952 idx=1272 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.002" ctrl=202 poly=188 鈫?vtx=700 idx=972 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.008" ctrl=1008 poly=1024 鈫?vtx=4084 idx=6108 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.004" evalT=(-0.787883,-2.439789,34.485565) geoT=(0.000000,0.000000,0.000000) pureT=(-0.787883,-2.439789,34.485565) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.004" ctrl=128 poly=98 鈫?vtx=416 idx=660 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.014" ctrl=1501 poly=1496 鈫?vtx=5984 idx=8976 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.012" evalT=(4.455289,1.795954,26.615334) geoT=(0.000000,0.000000,0.000000) pureT=(4.455289,1.795954,26.615334) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.012" ctrl=112 poly=98 鈫?vtx=416 idx=660 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.013" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.013" ctrl=372 poly=327 鈫?vtx=1348 idx=2082 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Plane.005" ctrl=257 poly=208 鈫?vtx=888 idx=1416 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.008" evalT=(4.460633,-0.083407,26.563343) geoT=(0.000000,0.000000,0.000000) pureT=(4.460633,-0.083407,26.563343) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.008" ctrl=32 poly=18 鈫?vtx=96 idx=180 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.009" evalT=(4.460641,-0.599264,26.563341) geoT=(0.000000,0.000000,0.000000) pureT=(4.460641,-0.599264,26.563341) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.009" ctrl=340 poly=310 鈫?vtx=1292 idx=2016 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.010" evalT=(4.460642,0.553814,26.563351) geoT=(0.000000,0.000000,0.000000) pureT=(4.460642,0.553814,26.563351) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.010" ctrl=240 poly=226 鈫?vtx=928 idx=1428 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.011" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.011" ctrl=304 poly=257 鈫?vtx=1072 idx=1674 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.018" evalT=(4.455206,1.539997,26.614698) geoT=(0.000000,0.000000,0.000000) pureT=(4.455206,1.539997,26.614698) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.018" ctrl=288 poly=258 鈫?vtx=1088 idx=1716 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.006" evalT=(5.779902,-1.005436,25.517118) geoT=(0.000000,0.000000,0.000000) pureT=(5.779902,-1.005436,25.517118) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.006" ctrl=1420 poly=1402 鈫?vtx=5632 idx=8484 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder" evalT=(-9.515686,-1.184839,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-9.515686,-1.184839,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder" ctrl=2816 poly=2752 鈫?vtx=11008 idx=16512 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.001" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.001" ctrl=1408 poly=1376 鈫?vtx=5504 idx=8256 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.002" evalT=(-0.779870,-0.986224,34.855068) geoT=(0.000000,0.000000,0.000000) pureT=(-0.779870,-0.986224,34.855068) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.002" ctrl=1888 poly=1860 鈫?vtx=7488 idx=11304 posEmpty=no
+[INFO] FbxSceneConverter: mesh "gwiazda" ctrl=482 poly=518 鈫?vtx=1992 idx=2868 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Plane" ctrl=300 poly=306 鈫?vtx=1212 idx=1800 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Plane.003" ctrl=1986 poly=1848 鈫?vtx=7528 idx=11496 posEmpty=no
+[INFO] FbxSceneConverter: mesh "srodek_gwiazda" ctrl=470 poly=428 鈫?vtx=1712 idx=2568 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.004" ctrl=224 poly=148 鈫?vtx=720 idx=1272 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.006" ctrl=112 poly=76 鈫?vtx=368 idx=648 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.014" evalT=(4.458781,2.602921,26.565769) geoT=(0.000000,0.000000,0.000000) pureT=(4.458781,2.602921,26.565769) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.014" ctrl=80 poly=62 鈫?vtx=280 idx=468 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.015" evalT=(-9.515686,-1.184839,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-9.515686,-1.184839,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.015" ctrl=48 poly=34 鈫?vtx=160 idx=276 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.019" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.019" ctrl=1240 poly=1226 鈫?vtx=4904 idx=7356 posEmpty=no
+[INFO] FbxSceneConverter: mesh "gwizada_ozdoba" ctrl=864 poly=824 鈫?vtx=3296 idx=4944 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.027" evalT=(1.768726,-0.984782,22.328905) geoT=(0.000000,0.000000,0.000000) pureT=(1.768726,-0.984782,22.328905) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.027" ctrl=144 poly=122 鈫?vtx=528 idx=852 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.029" evalT=(-1.461111,-0.981270,22.328905) geoT=(0.000000,0.000000,0.000000) pureT=(-1.461111,-0.981270,22.328905) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.029" ctrl=192 poly=170 鈫?vtx=720 idx=1140 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.031" evalT=(-3.306731,-0.981270,22.325760) geoT=(0.000000,0.000000,0.000000) pureT=(-3.306731,-0.981270,22.325760) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.031" ctrl=216 poly=193 鈫?vtx=792 idx=1218 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.033" evalT=(-3.306731,-0.981270,25.128166) geoT=(0.000000,0.000000,0.000000) pureT=(-3.306731,-0.981270,25.128166) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.033" ctrl=360 poly=337 鈫?vtx=1368 idx=2082 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.035" evalT=(-5.795206,-0.981270,22.325760) geoT=(0.000000,0.000000,0.000000) pureT=(-5.795206,-0.981270,22.325760) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.035" ctrl=216 poly=193 鈫?vtx=792 idx=1218 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.037" evalT=(-5.775737,-0.981111,25.327168) geoT=(0.000000,0.000000,0.000000) pureT=(-5.775737,-0.981111,25.327168) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.037" ctrl=480 poly=458 鈫?vtx=1872 idx=2868 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.038" evalT=(-5.775715,-0.981270,25.613878) geoT=(0.000000,0.000000,0.000000) pureT=(-5.775715,-0.981270,25.613878) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.038" ctrl=216 poly=194 鈫?vtx=816 idx=1284 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.040" evalT=(-9.515686,-1.184839,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-9.515686,-1.184839,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.040" ctrl=552 poly=529 鈫?vtx=2136 idx=3234 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.009" ctrl=68 poly=66 鈫?vtx=264 idx=396 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.021" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.021" ctrl=16 poly=10 鈫?vtx=48 idx=84 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.022" evalT=(-7.156062,-0.975926,29.966244) geoT=(0.000000,0.000000,0.000000) pureT=(-7.156062,-0.975926,29.966244) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.022" ctrl=12 poly=8 鈫?vtx=36 idx=60 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.023" evalT=(-7.156009,-0.195136,30.045050) geoT=(0.000000,0.000000,0.000000) pureT=(-7.156009,-0.195136,30.045050) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.023" ctrl=96 poly=92 鈫?vtx=368 idx=552 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.025" ctrl=332 poly=304 鈫?vtx=1264 idx=1968 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.026" ctrl=218 poly=184 鈫?vtx=736 idx=1104 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.089" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.089" ctrl=54 poly=49 鈫?vtx=202 idx=312 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Circle.001" ctrl=2594 poly=2560 鈫?vtx=10240 idx=15360 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.005" ctrl=84 poly=72 鈫?vtx=296 idx=456 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.007" ctrl=32 poly=26 鈫?vtx=104 idx=156 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.005" evalT=(-0.743483,-2.470031,34.593369) geoT=(0.000000,0.000000,0.000000) pureT=(-0.743483,-2.470031,34.593369) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.005" ctrl=160 poly=122 鈫?vtx=520 idx=828 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.104" evalT=(-0.779893,-1.094336,34.855358) geoT=(0.000000,0.000000,0.000000) pureT=(-0.779893,-1.094336,34.855358) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.104" ctrl=32 poly=18 鈫?vtx=96 idx=180 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.007" evalT=(-6.653933,-0.975509,67.826584) geoT=(0.000000,0.000000,0.000000) pureT=(-6.653933,-0.975509,67.826584) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.007" ctrl=128 poly=114 鈫?vtx=480 idx=756 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.057" evalT=(1.738430,-0.816566,34.234932) geoT=(0.000000,0.000000,0.000000) pureT=(1.738430,-0.816566,34.234932) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.057" ctrl=304 poly=282 鈫?vtx=1136 idx=1716 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.106" evalT=(0.202536,-0.000000,-0.004746) geoT=(0.000000,0.000000,0.000000) pureT=(0.202536,-0.000000,-0.004746) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.106" ctrl=304 poly=282 鈫?vtx=1136 idx=1716 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.028" evalT=(1.768726,-0.984782,23.130529) geoT=(0.000000,0.000000,0.000000) pureT=(1.768726,-0.984782,23.130529) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.028" ctrl=192 poly=170 鈫?vtx=720 idx=1140 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.030" evalT=(-1.461111,-0.981270,23.116409) geoT=(0.000000,0.000000,0.000000) pureT=(-1.461111,-0.981270,23.116409) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.030" ctrl=96 poly=74 鈫?vtx=336 idx=564 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.032" evalT=(-3.306731,-0.981270,24.345367) geoT=(0.000000,0.000000,0.000000) pureT=(-3.306731,-0.981270,24.345367) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.032" ctrl=96 poly=96 鈫?vtx=384 idx=576 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.036" evalT=(-5.775715,-0.981270,24.345367) geoT=(0.000000,0.000000,0.000000) pureT=(-5.775715,-0.981270,24.345367) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.036" ctrl=96 poly=96 鈫?vtx=384 idx=576 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.039" evalT=(-5.775715,-0.981270,27.898924) geoT=(0.000000,0.000000,0.000000) pureT=(-5.775715,-0.981270,27.898924) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.039" ctrl=96 poly=96 鈫?vtx=384 idx=576 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.055" evalT=(1.768726,-0.984782,23.130529) geoT=(0.000000,0.000000,0.000000) pureT=(1.768726,-0.984782,23.130529) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.055" ctrl=96 poly=74 鈫?vtx=336 idx=564 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.085" evalT=(-1.821429,-1.101355,25.881968) geoT=(0.000000,0.000000,0.000000) pureT=(-1.821429,-1.101355,25.881968) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.085" ctrl=32 poly=32 鈫?vtx=128 idx=192 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.090" evalT=(-10.697350,-1.776020,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-10.697350,-1.776020,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.090" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.091" evalT=(-10.726850,-0.551154,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-10.726850,-0.551154,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.091" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.092" evalT=(-9.532700,-1.172192,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-9.532700,-1.172192,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.092" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.093" evalT=(-8.217020,-1.776020,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-8.217020,-1.776020,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.093" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.094" evalT=(-8.246520,-0.551154,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-8.246520,-0.551154,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.094" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.095" evalT=(-7.052371,-1.172192,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-7.052371,-1.172192,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.095" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.096" evalT=(-10.697350,-1.776020,3.524033) geoT=(0.000000,0.000000,0.000000) pureT=(-10.697350,-1.776020,3.524033) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.096" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.097" evalT=(-10.726850,-0.551154,3.524033) geoT=(0.000000,0.000000,0.000000) pureT=(-10.726850,-0.551154,3.524033) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.097" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.098" evalT=(-9.532700,-1.172192,3.524033) geoT=(0.000000,0.000000,0.000000) pureT=(-9.532700,-1.172192,3.524033) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.098" ctrl=120 poly=114 鈫?vtx=464 idx=708 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.003" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.004" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.005" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.006" ctrl=48 poly=44 鈫?vtx=180 idx=276 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.008" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.009" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.010" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.011" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.014" ctrl=42 poly=38 鈫?vtx=156 idx=240 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.015" ctrl=42 poly=38 鈫?vtx=156 idx=240 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.016" ctrl=42 poly=38 鈫?vtx=156 idx=240 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.017" ctrl=42 poly=38 鈫?vtx=156 idx=240 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.007" ctrl=48 poly=44 鈫?vtx=180 idx=276 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.012" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "noga_r_dol.013" ctrl=84 poly=76 鈫?vtx=312 idx=480 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.012" ctrl=24 poly=17 鈫?vtx=72 idx=114 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.020" ctrl=70 poly=68 鈫?vtx=272 idx=408 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.062" evalT=(-7.483792,-0.733161,28.311401) geoT=(0.000000,0.000000,0.000000) pureT=(-7.483792,-0.733161,28.311401) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.062" ctrl=22 poly=18 鈫?vtx=76 idx=120 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.063" evalT=(-7.483792,-1.204764,28.311401) geoT=(0.000000,0.000000,0.000000) pureT=(-7.483792,-1.204764,28.311401) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.063" ctrl=22 poly=18 鈫?vtx=76 idx=120 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.064" evalT=(-7.473589,-0.974188,28.296886) geoT=(0.000000,0.000000,0.000000) pureT=(-7.473589,-0.974188,28.296886) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.064" ctrl=352 poly=336 鈫?vtx=1344 idx=2016 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.065" evalT=(-9.515686,-1.102782,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-9.515686,-1.102782,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.065" ctrl=256 poly=241 鈫?vtx=976 idx=1482 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.066" evalT=(-7.724078,-0.816512,27.674498) geoT=(0.000000,0.000000,0.000000) pureT=(-7.724078,-0.816512,27.674498) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.066" ctrl=22 poly=18 鈫?vtx=76 idx=120 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.067" evalT=(-8.065103,-0.805156,27.674498) geoT=(0.000000,0.000000,0.000000) pureT=(-8.065103,-0.805156,27.674498) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.067" ctrl=22 poly=18 鈫?vtx=76 idx=120 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.069" evalT=(-8.068314,-1.126513,27.674498) geoT=(0.000000,0.000000,0.000000) pureT=(-8.068314,-1.126513,27.674498) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.069" ctrl=22 poly=18 鈫?vtx=76 idx=120 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.074" evalT=(-9.515686,-0.844430,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(-9.515686,-0.844430,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.074" ctrl=112 poly=98 鈫?vtx=416 idx=660 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.075" evalT=(-6.948891,-0.975926,26.898386) geoT=(0.000000,0.000000,0.000000) pureT=(-6.948891,-0.975926,26.898386) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.075" ctrl=32 poly=18 鈫?vtx=96 idx=180 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.017" ctrl=72 poly=72 鈫?vtx=280 idx=408 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.042" evalT=(-5.854755,-0.994320,36.018063) geoT=(0.000000,0.000000,0.000000) pureT=(-5.854755,-0.994320,36.018063) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.042" ctrl=176 poly=154 鈫?vtx=624 idx=948 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.043" evalT=(-5.776311,-0.993758,34.288227) geoT=(0.000000,0.000000,0.000000) pureT=(-5.776311,-0.993758,34.288227) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.043" ctrl=188 poly=156 鈫?vtx=624 idx=936 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.045" evalT=(-3.295732,-1.389184,33.567051) geoT=(0.000000,0.000000,0.000000) pureT=(-3.295732,-1.389184,33.567051) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.045" ctrl=32 poly=18 鈫?vtx=80 idx=132 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.046" evalT=(-3.295486,-0.994852,33.566757) geoT=(0.000000,0.000000,0.000000) pureT=(-3.295486,-0.994852,33.566757) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.046" ctrl=96 poly=96 鈫?vtx=384 idx=576 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.047" evalT=(-5.776256,-0.995491,34.288464) geoT=(0.000000,0.000000,0.000000) pureT=(-5.776256,-0.995491,34.288464) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.047" ctrl=112 poly=98 鈫?vtx=416 idx=660 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.105" evalT=(-5.776311,-0.993758,34.290585) geoT=(0.000000,0.000000,0.000000) pureT=(-5.776311,-0.993758,34.290585) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.105" ctrl=128 poly=122 鈫?vtx=496 idx=756 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.050" evalT=(-3.294738,-0.995252,34.458416) geoT=(0.000000,0.000000,0.000000) pureT=(-3.294738,-0.995252,34.458416) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.050" ctrl=112 poly=98 鈫?vtx=416 idx=660 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.051" evalT=(-3.294664,-0.994235,34.369732) geoT=(0.000000,0.000000,0.000000) pureT=(-3.294664,-0.994235,34.369732) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.051" ctrl=64 poly=49 鈫?vtx=208 idx=330 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.052" evalT=(-3.249398,-0.995252,34.347317) geoT=(0.000000,0.000000,0.000000) pureT=(-3.249398,-0.995252,34.347317) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.052" ctrl=102 poly=88 鈫?vtx=362 idx=558 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.107" evalT=(-3.293114,-0.816566,35.533920) geoT=(0.000000,0.000000,0.000000) pureT=(-3.293114,-0.816566,35.533920) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.107" ctrl=144 poly=122 鈫?vtx=496 idx=756 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.018" ctrl=96 poly=96 鈫?vtx=376 idx=552 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.048" evalT=(-5.776130,-0.993758,34.137283) geoT=(0.000000,0.000000,0.000000) pureT=(-5.776130,-0.993758,34.137283) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.048" ctrl=64 poly=49 鈫?vtx=208 idx=330 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.049" evalT=(-5.687438,-0.995491,34.099106) geoT=(0.000000,0.000000,0.000000) pureT=(-5.687438,-0.995491,34.099106) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.049" ctrl=102 poly=88 鈫?vtx=362 idx=558 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.024" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.024" ctrl=64 poly=36 鈫?vtx=192 idx=360 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.025" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.025" ctrl=32 poly=16 鈫?vtx=64 idx=96 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.023" ctrl=160 poly=144 鈫?vtx=576 idx=864 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.021" ctrl=24 poly=22 鈫?vtx=88 idx=132 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.022" ctrl=390 poly=364 鈫?vtx=1504 idx=2328 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.041" evalT=(-5.775715,-0.981270,30.322567) geoT=(0.000000,0.000000,0.000000) pureT=(-5.775715,-0.981270,30.322567) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.041" ctrl=72 poly=66 鈫?vtx=272 idx=420 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.070" evalT=(-8.025893,-0.974189,26.013166) geoT=(0.000000,0.000000,0.000000) pureT=(-8.025893,-0.974189,26.013166) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.070" ctrl=128 poly=114 鈫?vtx=480 idx=756 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.071" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.071" ctrl=208 poly=194 鈫?vtx=800 idx=1236 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.026" evalT=(-7.156013,-1.776936,27.149189) geoT=(0.000000,0.000000,0.000000) pureT=(-7.156013,-1.776936,27.149189) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.026" ctrl=44 poly=34 鈫?vtx=152 idx=252 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.076" evalT=(-7.156013,-0.174517,27.520216) geoT=(0.000000,0.000000,0.000000) pureT=(-7.156013,-0.174517,27.520216) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.076" ctrl=360 poly=336 鈫?vtx=1376 idx=2112 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.077" evalT=(-6.897309,-0.173964,26.988028) geoT=(0.000000,0.000000,0.000000) pureT=(-6.897309,-0.173964,26.988028) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.077" ctrl=104 poly=90 鈫?vtx=384 idx=612 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.078" evalT=(-7.205689,-0.176745,27.195641) geoT=(0.000000,0.000000,0.000000) pureT=(-7.205689,-0.176745,27.195641) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.078" ctrl=113 poly=112 鈫?vtx=432 idx=624 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.079" evalT=(-7.408108,1.148137,28.192036) geoT=(0.000000,0.000000,0.000000) pureT=(-7.408108,1.148137,28.192036) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.079" ctrl=113 poly=112 鈫?vtx=432 idx=624 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.080" evalT=(-6.705320,1.014501,27.167057) geoT=(0.000000,0.000000,0.000000) pureT=(-6.705320,1.014501,27.167057) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.080" ctrl=44 poly=34 鈫?vtx=152 idx=252 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.010" ctrl=112 poly=110 鈫?vtx=440 idx=660 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.019" ctrl=64 poly=64 鈫?vtx=248 idx=360 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.053" evalT=(-9.515686,-1.184839,0.074345) geoT=(0.000000,0.000000,0.000000) pureT=(-9.515686,-1.184839,0.074345) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.053" ctrl=144 poly=130 鈫?vtx=544 idx=852 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.058" evalT=(1.738936,-0.995252,33.215145) geoT=(0.000000,0.000000,0.000000) pureT=(1.738936,-0.995252,33.215145) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.058" ctrl=112 poly=98 鈫?vtx=416 idx=660 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.059" evalT=(1.739010,-0.994235,33.123329) geoT=(0.000000,0.000000,0.000000) pureT=(1.739010,-0.994235,33.123329) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.059" ctrl=208 poly=192 鈫?vtx=768 idx=1152 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.061" evalT=(1.773352,-0.994235,23.417143) geoT=(0.000000,0.000000,0.000000) pureT=(1.773352,-0.994235,23.417143) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.061" ctrl=160 poly=146 鈫?vtx=608 idx=948 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.108" evalT=(1.740559,-0.816566,34.287518) geoT=(0.000000,0.000000,0.000000) pureT=(1.740559,-0.816566,34.287518) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.108" ctrl=128 poly=118 鈫?vtx=480 idx=732 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.013" ctrl=8 poly=6 鈫?vtx=24 idx=36 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.099" evalT=(-0.005016,-1.025295,24.936466) geoT=(0.000000,0.000000,0.000000) pureT=(-0.005016,-1.025295,24.936466) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.099" ctrl=160 poly=154 鈫?vtx=624 idx=948 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.056" evalT=(1.768726,-0.984782,23.130529) geoT=(0.000000,0.000000,0.000000) pureT=(1.768726,-0.984782,23.130529) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.056" ctrl=240 poly=240 鈫?vtx=960 idx=1440 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.082" evalT=(-2.032078,-1.113657,35.138397) geoT=(0.000000,0.000000,0.000000) pureT=(-2.032078,-1.113657,35.138397) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.082" ctrl=40 poly=34 鈫?vtx=144 idx=228 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.083" evalT=(-2.032078,-1.101355,35.123455) geoT=(0.000000,0.000000,0.000000) pureT=(-2.032078,-1.101355,35.123455) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.083" ctrl=16 poly=8 鈫?vtx=32 idx=48 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.084" evalT=(-2.024162,-1.101355,27.011547) geoT=(0.000000,0.000000,0.000000) pureT=(-2.024162,-1.101355,27.011547) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.084" ctrl=80 poly=72 鈫?vtx=296 idx=456 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.086" evalT=(-1.489382,-1.101355,24.092951) geoT=(0.000000,0.000000,0.000000) pureT=(-1.489382,-1.101355,24.092951) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.086" ctrl=40 poly=34 鈫?vtx=144 idx=228 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.088" evalT=(-9.558657,-1.184839,0.026548) geoT=(0.000000,0.000000,0.000000) pureT=(-9.558657,-1.184839,0.026548) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.088" ctrl=96 poly=83 鈫?vtx=354 idx=564 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.087" evalT=(-9.515686,-1.242024,0.029503) geoT=(0.000000,0.000000,0.000000) pureT=(-9.515686,-1.242024,0.029503) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.087" ctrl=248 poly=240 鈫?vtx=960 idx=1440 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.016" ctrl=24 poly=22 鈫?vtx=88 idx=132 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.034" evalT=(-3.306731,-0.981270,25.772495) geoT=(0.000000,0.000000,0.000000) pureT=(-3.306731,-0.981270,25.772495) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.034" ctrl=40 poly=34 鈫?vtx=144 idx=228 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.068" evalT=(-7.720086,-1.130102,27.674498) geoT=(0.000000,0.000000,0.000000) pureT=(-7.720086,-1.130102,27.674498) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.068" ctrl=22 poly=18 鈫?vtx=76 idx=120 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.072" evalT=(-7.897985,-1.346371,27.430113) geoT=(0.000000,0.000000,0.000000) pureT=(-7.897985,-1.346371,27.430113) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.072" ctrl=64 poly=49 鈫?vtx=208 idx=330 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.073" evalT=(-7.897985,-1.532354,27.430111) geoT=(0.000000,0.000000,0.000000) pureT=(-7.897985,-1.532354,27.430111) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.073" ctrl=40 poly=34 鈫?vtx=144 idx=228 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.054" evalT=(-11.995084,-1.184840,4.401977) geoT=(0.000000,0.000000,0.000000) pureT=(-11.995084,-1.184840,4.401977) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.054" ctrl=176 poly=162 鈫?vtx=672 idx=1044 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Cube.024" ctrl=240 poly=226 鈫?vtx=928 idx=1428 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.020" evalT=(-7.156062,-0.975926,29.812311) geoT=(0.000000,0.000000,0.000000) pureT=(-7.156062,-0.975926,29.812311) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.020" ctrl=40 poly=34 鈫?vtx=144 idx=228 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.081" evalT=(0.000000,0.000000,0.000000) geoT=(0.000000,0.000000,0.000000) pureT=(0.000000,0.000000,0.000000) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.081" ctrl=16 poly=10 鈫?vtx=48 idx=84 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.060" evalT=(1.784276,-0.995252,33.100914) geoT=(0.000000,0.000000,0.000000) pureT=(1.784276,-0.995252,33.100914) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.060" ctrl=102 poly=88 鈫?vtx=362 idx=558 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.016" evalT=(4.455197,1.657125,26.614708) geoT=(0.000000,0.000000,0.000000) pureT=(4.455197,1.657125,26.614708) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.016" ctrl=14848 poly=14848 鈫?vtx=59392 idx=89088 posEmpty=no
+[INFO] FbxSceneConverter: node "Cylinder.017" evalT=(4.455183,1.656474,26.614777) geoT=(0.000000,0.000000,0.000000) pureT=(4.455183,1.656474,26.614777) |geoR|=(0.000000,0.000000,0.000000) |geoS|=(1.000000,1.000000,1.000000)
+[INFO] FbxSceneConverter: mesh "Cylinder.017" ctrl=2622 poly=2540 鈫?vtx=10320 idx=15720 posEmpty=no
+[INFO] FbxSceneConverter: mesh "Plane.002" ctrl=914 poly=912 鈫?vtx=3652 idx=5484 posEmpty=no
+[INFO] FbxSceneConverter: found 1 animation stack(s).
+[INFO] FbxSceneConverter: converted 1 animation clip(s).
+[INFO] FbxSceneConverter: converted 174 mesh(es), 7 material(s), 0 texture(s).
+[INFO] [Pipeline] Running pass: UnitConvertPass
+[INFO] UnitConvertPass: scale factor = 0.010000
+[INFO] GltfExporter: exported 1 animation clip(s).
+[INFO] GltfExporter: exported 174 mesh(es), 7 material(s) -> F:/WangLuProject/3DExchange/tests/data/_fbx_to_glb_anim_test.glb
+[       OK ] GltfAnimationExportTest.FbxToGlb_RoundTrip_AnimationClipsMatch (3253 ms)
+[----------] 1 test from GltfAnimationExportTest (3254 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 2 test suites ran. (4182 ms total)
+[  PASSED  ] 2 tests.
+
+F:\WangLuProject\3DExchange\build\Debug\mc_tests.exe (进程 25632)已退出，代码为 0。
+要在调试停止时自动关闭控制台，请启用“工具”->“选项”->“调试”->“调试停止时自动关闭控制台”。
+按任意键关闭此窗口. . .

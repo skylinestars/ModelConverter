@@ -9,12 +9,15 @@
 #include "mc/core/Material.h"
 #include "mc/core/Texture.h"
 #include "mc/core/Node.h"
+#include "mc/core/Animation.h"
 #include "mc/common/Logger.h"
 
 #include <cstddef>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <sstream>
+#include <unordered_map>
 
 namespace mc {
 
@@ -266,6 +269,55 @@ void GltfSceneConverter::ConvertMaterials(const tinygltf::Model& model, Scene& m
 }
 
 // ============================================================
+// 辅助：读蒙皮权重
+// ============================================================
+static void ReadSkinWeights(const tinygltf::Model& model,
+                             int jointsAcc, int weightsAcc,
+                             uint32_t vertexBase, uint32_t indexCount,
+                             Mesh& mcMesh)
+{
+    // 扩展 skinInfluences 到所有顶点
+    size_t newSize = vertexBase + indexCount;
+    if (mcMesh.skinInfluences.size() < newSize)
+        mcMesh.skinInfluences.resize(newSize);
+
+    // 读取 joints（uint8 或 uint16）
+    const auto& jAcc = model.accessors[jointsAcc];
+    const auto& jBv  = model.bufferViews[jAcc.bufferView];
+    const auto& jBuf = model.buffers[jBv.buffer];
+    const uint8_t* jBase = jBuf.data.data() + jBv.byteOffset + jAcc.byteOffset;
+    size_t jStride = jBv.byteStride ? jBv.byteStride
+                    : tinygltf::GetComponentSizeInBytes(jAcc.componentType) * 4; // VEC4
+
+    // 读取 weights（float VEC4）
+    auto wFloats = ReadFloatAccessor(model, weightsAcc);
+
+    uint32_t vCount = (uint32_t)jAcc.count;
+    for (uint32_t v = 0; v < vCount; ++v)
+    {
+        auto& infs = mcMesh.skinInfluences[vertexBase + v];
+        infs.clear();
+        for (int c = 0; c < 4; ++c)
+        {
+            // 读取 joint index
+            const uint8_t* jPtr = jBase + v * jStride + c * tinygltf::GetComponentSizeInBytes(jAcc.componentType);
+            uint16_t joint = 0;
+            if (jAcc.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+                std::memcpy(&joint, jPtr, 2);
+            else if (jAcc.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+                joint = *jPtr;
+
+            // 读取 weight
+            size_t wIdx = v * 4 + c;
+            float weight = (wIdx < wFloats.size()) ? wFloats[wIdx] : 0.0f;
+
+            if (weight > 0.0f)
+                infs.push_back({joint, weight});
+        }
+    }
+}
+
+// ============================================================
 // ConvertMeshes
 // ============================================================
 void GltfSceneConverter::ConvertMeshes(const tinygltf::Model& model, Scene& mcScene)
@@ -329,6 +381,15 @@ void GltfSceneConverter::ConvertMeshes(const tinygltf::Model& model, Scene& mcSc
                 primIndexCount = vCount;
             }
 
+            // Skin weights（JOINTS_0 + WEIGHTS_0）
+            auto jtIt = prim.attributes.find("JOINTS_0");
+            auto wtIt = prim.attributes.find("WEIGHTS_0");
+            if (jtIt != prim.attributes.end() && wtIt != prim.attributes.end())
+            {
+                ReadSkinWeights(model, jtIt->second, wtIt->second,
+                                vertexBase, primIndexCount, mcMesh);
+            }
+
             // Section
             MeshSection sec;
             sec.indexOffset = indexOffset;
@@ -357,7 +418,12 @@ void GltfSceneConverter::ConvertNode(const tinygltf::Model& model,
     mc::Node* mcNode = mcScene.FindNode(nodeId);
     mcNode->name = gNode.name;
 
-    // Transform: TRS 或 matrix
+    // 记录 gltf node index -> mc ObjectID 映射，供动画转换使用
+    if ((size_t)nodeIdx >= m_nodeIdMap.size())
+        m_nodeIdMap.resize(nodeIdx + 1, INVALID_ID);
+    m_nodeIdMap[nodeIdx] = nodeId;
+
+    // Transform: matrix 优先，否则 TRS
     if (!gNode.matrix.empty())
     {
         const auto& m = gNode.matrix;
@@ -368,7 +434,47 @@ void GltfSceneConverter::ConvertNode(const tinygltf::Model& model,
             (float)m[12], (float)m[13], (float)m[14], (float)m[15]
         );
     }
-    // else: TRS 留给后续 Phase 处理，此 Phase 先用单位矩阵
+    else
+    {
+        // 从 TRS 属性构建矩阵（GLTF 列主序）
+        float tx = gNode.translation.size() >= 3 ? (float)gNode.translation[0] : 0.0f;
+        float ty = gNode.translation.size() >= 3 ? (float)gNode.translation[1] : 0.0f;
+        float tz = gNode.translation.size() >= 3 ? (float)gNode.translation[2] : 0.0f;
+
+        float sx = gNode.scale.size() >= 3 ? (float)gNode.scale[0] : 1.0f;
+        float sy = gNode.scale.size() >= 3 ? (float)gNode.scale[1] : 1.0f;
+        float sz = gNode.scale.size() >= 3 ? (float)gNode.scale[2] : 1.0f;
+
+        // Quaternion → 旋转矩阵（列主序）
+        float qx = gNode.rotation.size() >= 4 ? (float)gNode.rotation[0] : 0.0f;
+        float qy = gNode.rotation.size() >= 4 ? (float)gNode.rotation[1] : 0.0f;
+        float qz = gNode.rotation.size() >= 4 ? (float)gNode.rotation[2] : 0.0f;
+        float qw = gNode.rotation.size() >= 4 ? (float)gNode.rotation[3] : 1.0f;
+
+        float xx = qx * qx, yy = qy * qy, zz = qz * qz;
+        float xy = qx * qy, xz = qx * qz, yz = qy * qz;
+        float wx = qw * qx, wy = qw * qy, wz = qw * qz;
+
+        // 旋转矩阵列 (column-major) → 乘以 scale
+        float r00 = (1.0f - 2.0f * (yy + zz)) * sx;
+        float r10 = (2.0f * (xy + wz)) * sx;
+        float r20 = (2.0f * (xz - wy)) * sx;
+
+        float r01 = (2.0f * (xy - wz)) * sy;
+        float r11 = (1.0f - 2.0f * (xx + zz)) * sy;
+        float r21 = (2.0f * (yz + wx)) * sy;
+
+        float r02 = (2.0f * (xz + wy)) * sz;
+        float r12 = (2.0f * (yz - wx)) * sz;
+        float r22 = (1.0f - 2.0f * (xx + yy)) * sz;
+
+        mcNode->localMatrix = Matrix4(
+            r00, r10, r20, 0.0f,
+            r01, r11, r21, 0.0f,
+            r02, r12, r22, 0.0f,
+            tx,  ty,  tz,  1.0f
+        );
+    }
 
     // Mesh 引用
     if (gNode.mesh >= 0 && gNode.mesh < (int)meshIdMap.size())
@@ -387,6 +493,370 @@ void GltfSceneConverter::ConvertNode(const tinygltf::Model& model,
 
     for (int child : gNode.children)
         ConvertNode(model, child, mcScene, nodeId, meshIdMap);
+}
+
+// ============================================================
+// ConvertSkins（Phase15）
+// ============================================================
+void GltfSceneConverter::ConvertSkins(const tinygltf::Model& model, Scene& mcScene)
+{
+    if (model.skins.empty()) return;
+
+    // 第一步：创建 Skeleton
+    std::vector<ObjectID> skelIdMap(model.skins.size(), INVALID_ID);
+    for (size_t skinIdx = 0; skinIdx < model.skins.size(); ++skinIdx)
+    {
+        const auto& gSkin = model.skins[skinIdx];
+        if (gSkin.joints.empty()) continue;
+
+        Skeleton skel;
+        skel.id   = mcScene.AllocateId();
+        skel.name = gSkin.name.empty()
+                    ? "Skeleton_" + std::to_string(skinIdx) : gSkin.name;
+
+        std::vector<float> ibmFloats;
+        if (gSkin.inverseBindMatrices >= 0)
+            ibmFloats = ReadFloatAccessor(model, gSkin.inverseBindMatrices);
+
+        for (size_t j = 0; j < gSkin.joints.size(); ++j)
+        {
+            int gNodeIdx = gSkin.joints[j];
+            if (gNodeIdx < 0 || (size_t)gNodeIdx >= m_nodeIdMap.size()) continue;
+            ObjectID nodeId = m_nodeIdMap[gNodeIdx];
+            if (nodeId == INVALID_ID) continue;
+
+            // 标记为骨骼节点
+            Node* nd = mcScene.FindNode(nodeId);
+            if (nd) nd->type = NodeType::Bone;
+
+            Bone bone;
+            bone.id   = mcScene.AllocateId();
+            bone.name = nd ? nd->name : "";
+
+            size_t base = j * 16;
+            if (base + 15 < ibmFloats.size())
+            {
+                auto& f = ibmFloats;
+                bone.inverseBindPose = Matrix4(
+                    f[base+0],f[base+1],f[base+2],f[base+3],
+                    f[base+4],f[base+5],f[base+6],f[base+7],
+                    f[base+8],f[base+9],f[base+10],f[base+11],
+                    f[base+12],f[base+13],f[base+14],f[base+15]);
+            }
+            skel.bones.push_back(std::move(bone));
+        }
+
+        skelIdMap[skinIdx] = skel.id;
+        mcScene.skeletons.push_back(std::move(skel));
+    }
+
+    // 第二步：创建 Skin，关联 mesh
+    for (const auto& gNode : model.nodes)
+    {
+        if (gNode.skin < 0 || gNode.mesh < 0) continue;
+        size_t skinIdx = (size_t)gNode.skin;
+        if (skinIdx >= skelIdMap.size() || skelIdMap[skinIdx] == INVALID_ID) continue;
+
+        // 找 mc mesh ObjectID
+        ObjectID mcMeshId = INVALID_ID;
+        if ((size_t)gNode.mesh < model.meshes.size())
+        {
+            const auto& gMesh = model.meshes[gNode.mesh];
+            for (const auto& mcMesh : mcScene.meshes)
+            {
+                if (mcMesh.name == gMesh.name) { mcMeshId = mcMesh.id; break; }
+            }
+        }
+        if (mcMeshId == INVALID_ID) continue;
+
+        Skin skin;
+        skin.id         = mcScene.AllocateId();
+        skin.skeletonId = skelIdMap[skinIdx];
+        skin.meshId     = mcMeshId;
+        mcScene.skins.push_back(std::move(skin));
+    }
+
+    Logger::Instance().LogInfo(
+        "GltfSceneConverter: converted " + std::to_string(mcScene.skeletons.size()) +
+        " skeleton(s), " + std::to_string(mcScene.skins.size()) + " skin(s).");
+}
+
+// ============================================================
+// ApplySkinWeights（空实现，权重已在 ConvertMeshes 读取）
+// ============================================================
+void GltfSceneConverter::ApplySkinWeights(Scene& /*mcScene*/) {}
+
+// ============================================================
+// ConvertAnimations（Phase14）
+// ============================================================
+void GltfSceneConverter::ConvertAnimations(const tinygltf::Model& model, Scene& mcScene)
+{
+    for (const auto& gAnim : model.animations)
+    {
+        AnimationClip clip;
+        clip.id   = mcScene.AllocateId();
+        clip.name = gAnim.name;
+
+        // 第一步：收集每个 sampler 的时间戳，用于确定 clip 的 startTime/endTime
+        double animStart = std::numeric_limits<double>::max();
+        double animEnd   = std::numeric_limits<double>::lowest();
+
+        for (const auto& gSampler : gAnim.samplers)
+        {
+            auto times = ReadFloatAccessor(model, gSampler.input);
+            if (!times.empty())
+            {
+                animStart = std::min(animStart, static_cast<double>(times.front()));
+                animEnd   = std::max(animEnd,   static_cast<double>(times.back()));
+            }
+        }
+
+        if (animStart >= animEnd)
+        {
+            Logger::Instance().LogWarn(
+                "GltfSceneConverter: animation \"" + gAnim.name + "\" has no valid keyframes, skipped.");
+            continue;
+        }
+
+        clip.startTime = animStart;
+        clip.endTime   = animEnd;
+
+        // 第二步：遍历 channels，构建 NodeAnimation / MorphAnimation
+        // 按 (nodeId, path) 去重：同一个节点+路径可能被多个 channel 引用
+        std::unordered_map<ObjectID, NodeAnimation>   nodeAnimMap;
+        // Morph key: (meshId << 32) | morphIndex，确保同一 mesh 的不同 morph target 不互相覆盖
+        std::unordered_map<uint64_t, MorphAnimation>  morphAnimMap;
+
+        for (const auto& gChannel : gAnim.channels)
+        {
+            int samplerIdx = gChannel.sampler;
+            int targetNode = gChannel.target_node;
+            const std::string& path = gChannel.target_path;
+
+            if (samplerIdx < 0 || samplerIdx >= (int)gAnim.samplers.size())
+                continue;
+            if (targetNode < 0 || targetNode >= (int)m_nodeIdMap.size())
+                continue;
+
+            ObjectID mcNodeId = m_nodeIdMap[targetNode];
+            if (mcNodeId == INVALID_ID)
+                continue;
+
+            const auto& gSampler = gAnim.samplers[samplerIdx];
+
+            // 解析插值模式
+            AnimationInterpolation interp = AnimationInterpolation::Linear;
+            if (gSampler.interpolation == "STEP")
+                interp = AnimationInterpolation::Step;
+            else if (gSampler.interpolation == "CUBICSPLINE")
+                interp = AnimationInterpolation::CubicSpline;
+            else
+                interp = AnimationInterpolation::Linear;
+
+            // 读取时间戳
+            auto times = ReadFloatAccessor(model, gSampler.input);
+
+            if (path == "translation" || path == "rotation" || path == "scale")
+            {
+                // ---- NodeAnimation TRS 通道 ----
+                auto values = ReadFloatAccessor(model, gSampler.output);
+
+                auto& nodeAnim = nodeAnimMap[mcNodeId];
+                nodeAnim.nodeId = mcNodeId;
+
+                if (path == "translation")
+                {
+                    TrackVec3& track = nodeAnim.translation;
+                    track.interpolation = interp;
+
+                    if (interp == AnimationInterpolation::CubicSpline)
+                    {
+                        // CUBICSPLINE: 每关键帧 3 个 vec3（inTan, value, outTan）= 9 floats
+                        size_t frameCount = times.size();
+                        for (size_t f = 0; f < frameCount; ++f)
+                        {
+                            size_t base = f * 9;
+                            if (base + 8 >= values.size()) break;
+                            KeyFrame<Vec3> kf;
+                            kf.time   = times[f];
+                            kf.inTan  = Vec3(values[base+0], values[base+1], values[base+2]);
+                            kf.value  = Vec3(values[base+3], values[base+4], values[base+5]);
+                            kf.outTan = Vec3(values[base+6], values[base+7], values[base+8]);
+                            track.keys.push_back(kf);
+                        }
+                    }
+                    else
+                    {
+                        // LINEAR / STEP: 每关键帧 1 个 vec3 = 3 floats
+                        size_t frameCount = std::min(times.size(), values.size() / 3);
+                        for (size_t f = 0; f < frameCount; ++f)
+                        {
+                            KeyFrame<Vec3> kf;
+                            kf.time  = times[f];
+                            kf.value = Vec3(values[f*3+0], values[f*3+1], values[f*3+2]);
+                            track.keys.push_back(kf);
+                        }
+                    }
+                }
+                else if (path == "rotation")
+                {
+                    TrackQuat& track = nodeAnim.rotation;
+                    track.interpolation = interp;
+
+                    if (interp == AnimationInterpolation::CubicSpline)
+                    {
+                        // CUBICSPLINE: 每关键帧 3 个 quat（inTan, value, outTan）= 12 floats
+                        size_t frameCount = times.size();
+                        for (size_t f = 0; f < frameCount; ++f)
+                        {
+                            size_t base = f * 12;
+                            if (base + 11 >= values.size()) break;
+                            KeyFrame<Quaternion> kf;
+                            kf.time   = times[f];
+                            kf.inTan  = Quaternion(values[base+0], values[base+1], values[base+2], values[base+3]);
+                            kf.value  = Quaternion(values[base+4], values[base+5], values[base+6], values[base+7]);
+                            kf.outTan = Quaternion(values[base+8], values[base+9], values[base+10], values[base+11]);
+                            track.keys.push_back(kf);
+                        }
+                    }
+                    else
+                    {
+                        // LINEAR / STEP: 每关键帧 1 个 quat = 4 floats
+                        size_t frameCount = std::min(times.size(), values.size() / 4);
+                        for (size_t f = 0; f < frameCount; ++f)
+                        {
+                            KeyFrame<Quaternion> kf;
+                            kf.time  = times[f];
+                            kf.value = Quaternion(values[f*4+0], values[f*4+1], values[f*4+2], values[f*4+3]);
+                            track.keys.push_back(kf);
+                        }
+                    }
+                }
+                else if (path == "scale")
+                {
+                    TrackVec3& track = nodeAnim.scale;
+                    track.interpolation = interp;
+
+                    if (interp == AnimationInterpolation::CubicSpline)
+                    {
+                        size_t frameCount = times.size();
+                        for (size_t f = 0; f < frameCount; ++f)
+                        {
+                            size_t base = f * 9;
+                            if (base + 8 >= values.size()) break;
+                            KeyFrame<Vec3> kf;
+                            kf.time   = times[f];
+                            kf.inTan  = Vec3(values[base+0], values[base+1], values[base+2]);
+                            kf.value  = Vec3(values[base+3], values[base+4], values[base+5]);
+                            kf.outTan = Vec3(values[base+6], values[base+7], values[base+8]);
+                            track.keys.push_back(kf);
+                        }
+                    }
+                    else
+                    {
+                        size_t frameCount = std::min(times.size(), values.size() / 3);
+                        for (size_t f = 0; f < frameCount; ++f)
+                        {
+                            KeyFrame<Vec3> kf;
+                            kf.time  = times[f];
+                            kf.value = Vec3(values[f*3+0], values[f*3+1], values[f*3+2]);
+                            track.keys.push_back(kf);
+                        }
+                    }
+                }
+            }
+            else if (path == "weights")
+            {
+                // ---- MorphAnimation 权重通道 ----
+                auto values = ReadFloatAccessor(model, gSampler.output);
+
+                // 获取该节点引用的 mesh
+                if (targetNode < 0 || targetNode >= (int)model.nodes.size())
+                    continue;
+
+                const auto& gNode = model.nodes[targetNode];
+                if (gNode.mesh < 0)
+                    continue;
+
+                // 遍历该 mesh 的所有 morph target，为每个创建一个 MorphAnimation 通道
+                const auto& gMesh = model.meshes[gNode.mesh];
+                size_t morphCount = gMesh.weights.size();
+                if (morphCount == 0) continue;
+
+                // 获取 mc mesh ID（通过 node 的 meshIds），提到循环外避免重复查找
+                const Node* mcNode = mcScene.FindNode(mcNodeId);
+                if (!mcNode || mcNode->meshIds.empty()) continue;
+                ObjectID mcMeshId = mcNode->meshIds[0];  // GLTF 节点只有一个 mesh
+
+                for (size_t mi = 0; mi < morphCount; ++mi)
+                {
+                    // 复合 key: (meshId, morphIndex)
+                    uint64_t morphKey = (static_cast<uint64_t>(mcMeshId) << 32) | static_cast<uint64_t>(mi);
+
+                    MorphAnimation& morphAnim = morphAnimMap[morphKey];
+                    morphAnim.meshId     = mcMeshId;
+                    morphAnim.morphIndex = static_cast<uint32_t>(mi);
+                    TrackFloat& track    = morphAnim.weights;
+                    track.interpolation  = interp;
+
+                    if (interp == AnimationInterpolation::CubicSpline)
+                    {
+                        // CUBICSPLINE: 每关键帧 3 个 float（inTan, value, outTan）
+                        size_t frameCount = times.size();
+                        for (size_t f = 0; f < frameCount; ++f)
+                        {
+                            size_t base = f * morphCount * 3 + mi * 3;
+                            if (base + 2 >= values.size()) break;
+                            KeyFrame<float> kf;
+                            kf.time   = times[f];
+                            kf.inTan  = values[base + 0];
+                            kf.value  = values[base + 1];
+                            kf.outTan = values[base + 2];
+                            track.keys.push_back(kf);
+                        }
+                    }
+                    else
+                    {
+                        // LINEAR / STEP: 每关键帧 1 个 float
+                        size_t frameCount = times.size();
+                        for (size_t f = 0; f < frameCount; ++f)
+                        {
+                            size_t idx = f * morphCount + mi;
+                            if (idx >= values.size()) break;
+                            KeyFrame<float> kf;
+                            kf.time  = times[f];
+                            kf.value = values[idx];
+                            track.keys.push_back(kf);
+                        }
+                    }
+                }
+            }
+            else if (path == "visibility")
+            {
+                // GLTF 没有原生 visibility 通道，保留扩展点
+                Logger::Instance().LogWarn(
+                    "GltfSceneConverter: unsupported animation path \"" + path + "\"");
+            }
+        }
+
+        // 第三步：将所有 node/morph 通道写入 clip
+        for (auto& [nodeId, nodeAnim] : nodeAnimMap)
+            clip.nodeChannels.push_back(std::move(nodeAnim));
+
+        for (auto& [key, morphAnim] : morphAnimMap)
+            clip.morphChannels.push_back(std::move(morphAnim));
+
+        if (!clip.nodeChannels.empty() || !clip.morphChannels.empty())
+            mcScene.animations.push_back(std::move(clip));
+    }
+
+    if (!model.animations.empty())
+    {
+        Logger::Instance().LogInfo(
+            "GltfSceneConverter: converted " + std::to_string(mcScene.animations.size()) +
+            " animation clip(s)."
+        );
+    }
 }
 
 // ============================================================
@@ -431,6 +901,13 @@ VoidResult GltfSceneConverter::Convert(const tinygltf::Model& model,
                                                                      ? model.defaultScene : 0];
     for (int rootIdx : defaultScene.nodes)
         ConvertNode(model, rootIdx, mcScene, INVALID_ID, meshIdMap);
+
+    // Phase15: 骨骼蒙皮（须在节点树构建完成之后）
+    ConvertSkins(model, mcScene);
+    ApplySkinWeights(mcScene);
+
+    // Phase14: 动画转换
+    ConvertAnimations(model, mcScene);
 
     Logger::Instance().LogInfo(
         std::string("GltfSceneConverter: converted ") +

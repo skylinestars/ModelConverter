@@ -3,6 +3,7 @@
 #include "mc/core/Material.h"
 #include "mc/core/Texture.h"
 #include "mc/core/Node.h"
+#include "mc/core/Animation.h"
 #include "mc/common/Logger.h"
 
 #include <fbxsdk.h>
@@ -33,6 +34,7 @@ public:
         CreateMaterials(mcScene);
         CreateNodes(mcScene);
         WireRootNodes(mcScene);
+        AddAnimations(mcScene);
     }
 
 private:
@@ -339,6 +341,190 @@ private:
             auto it = m_nodeMap.find(rootId);
             if (it != m_nodeMap.end()) root->AddChild(it->second);
         }
+    }
+
+    // ---- Animations（Phase14）----
+    // Quaternion → Euler 角度（度），使用 ZYX 旋转顺序
+    static FbxDouble3 QuatToEulerDegrees(const Quaternion& q)
+    {
+        // 标准化四元数
+        float len2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+        float x = q.x / std::sqrt(len2);
+        float y = q.y / std::sqrt(len2);
+        float z = q.z / std::sqrt(len2);
+        float w = q.w / std::sqrt(len2);
+
+        // ZYX 内旋 → Euler (roll, pitch, yaw) = (zRot, xRot, yRot)
+        float sinRCosP = 2.0f * (w * x + y * z);
+        float cosRCosP = 1.0f - 2.0f * (x * x + y * y);
+        float rollZ = std::atan2(sinRCosP, cosRCosP);
+
+        float sinP    = 2.0f * (w * y - z * x);
+        float pitchX;
+        if (std::abs(sinP) >= 1.0f)
+            pitchX = std::copysign(3.14159265f / 2.0f, sinP);
+        else
+            pitchX = std::asin(sinP);
+
+        float sinYCosP = 2.0f * (w * z + x * y);
+        float cosYCosP = 1.0f - 2.0f * (y * y + z * z);
+        float yawY = std::atan2(sinYCosP, cosYCosP);
+
+        constexpr float kRadToDeg = 180.0f / 3.14159265358979f;
+        return FbxDouble3(pitchX * kRadToDeg, yawY * kRadToDeg, rollZ * kRadToDeg);
+    }
+
+    void AddAnimCurve(FbxAnimCurve* curve, const std::vector<KeyFrame<float>>& keys,
+                      FbxAnimCurveDef::EInterpolationType interp)
+    {
+        if (!curve) return;
+        curve->KeyModifyBegin();
+        for (const auto& kf : keys)
+        {
+            FbxTime fbxtime;
+            fbxtime.SetSecondDouble(kf.time);
+            int keyIdx = curve->KeyAdd(fbxtime);
+            curve->KeySetValue(keyIdx, kf.value);
+            curve->KeySetInterpolation(keyIdx, interp);
+        }
+        curve->KeyModifyEnd();
+    }
+
+    void AddAnimCurve(FbxAnimCurve* curve, const std::vector<KeyFrame<Vec3>>& keys,
+                      int component, FbxAnimCurveDef::EInterpolationType interp)
+    {
+        if (!curve) return;
+        curve->KeyModifyBegin();
+        for (const auto& kf : keys)
+        {
+            FbxTime fbxtime;
+            fbxtime.SetSecondDouble(kf.time);
+            int keyIdx = curve->KeyAdd(fbxtime);
+            float val = (&kf.value.x)[component];
+            curve->KeySetValue(keyIdx, val);
+            curve->KeySetInterpolation(keyIdx, interp);
+        }
+        curve->KeyModifyEnd();
+    }
+
+    static FbxAnimCurveDef::EInterpolationType ToFbxInterp(AnimationInterpolation interp)
+    {
+        switch (interp)
+        {
+            case AnimationInterpolation::Step:        return FbxAnimCurveDef::eInterpolationConstant;
+            case AnimationInterpolation::CubicSpline: return FbxAnimCurveDef::eInterpolationCubic;
+            default:                                   return FbxAnimCurveDef::eInterpolationLinear;
+        }
+    }
+
+    void AddNodeAnimation(FbxNode* fbxNode, const NodeAnimation& nodeAnim,
+                           FbxAnimLayer* layer)
+    {
+        FbxAnimCurveDef::EInterpolationType tInterp = ToFbxInterp(nodeAnim.translation.interpolation);
+        FbxAnimCurveDef::EInterpolationType rInterp = ToFbxInterp(nodeAnim.rotation.interpolation);
+        FbxAnimCurveDef::EInterpolationType sInterp = ToFbxInterp(nodeAnim.scale.interpolation);
+
+        // Translation
+        if (!nodeAnim.translation.keys.empty())
+        {
+            FbxAnimCurveNode* tNode = fbxNode->LclTranslation.GetCurveNode(layer, true);
+            if (tNode)
+            {
+                AddAnimCurve(tNode->CreateCurve(tNode->GetName(), FBXSDK_CURVENODE_COMPONENT_X),
+                             nodeAnim.translation.keys, 0, tInterp);
+                AddAnimCurve(tNode->CreateCurve(tNode->GetName(), FBXSDK_CURVENODE_COMPONENT_Y),
+                             nodeAnim.translation.keys, 1, tInterp);
+                AddAnimCurve(tNode->CreateCurve(tNode->GetName(), FBXSDK_CURVENODE_COMPONENT_Z),
+                             nodeAnim.translation.keys, 2, tInterp);
+            }
+        }
+
+        // Rotation: Quaternion → Euler（度），与 MakeSceneNode 的 mat.GetR() 保持一致
+        if (!nodeAnim.rotation.keys.empty())
+        {
+            FbxAnimCurveNode* rNode = fbxNode->LclRotation.GetCurveNode(layer, true);
+            if (rNode)
+            {
+                FbxAnimCurve* rx = rNode->CreateCurve(rNode->GetName(), FBXSDK_CURVENODE_COMPONENT_X);
+                FbxAnimCurve* ry = rNode->CreateCurve(rNode->GetName(), FBXSDK_CURVENODE_COMPONENT_Y);
+                FbxAnimCurve* rz = rNode->CreateCurve(rNode->GetName(), FBXSDK_CURVENODE_COMPONENT_Z);
+
+                if (rx) rx->KeyModifyBegin();
+                if (ry) ry->KeyModifyBegin();
+                if (rz) rz->KeyModifyBegin();
+
+                for (const auto& kf : nodeAnim.rotation.keys)
+                {
+                    // 用 FBX SDK 内置转换，与 MakeSceneNode 的 mat.GetR() 一致
+                    FbxQuaternion fbxQ(kf.value.x, kf.value.y, kf.value.z, kf.value.w);
+                    FbxAMatrix rotMtx;
+                    rotMtx.SetQ(fbxQ);
+                    FbxVector4 euler = rotMtx.GetR();
+
+                    FbxTime fbxtime;
+                    fbxtime.SetSecondDouble(kf.time);
+
+                    if (rx) { int ki = rx->KeyAdd(fbxtime); rx->KeySetValue(ki, static_cast<float>(euler[0])); rx->KeySetInterpolation(ki, rInterp); }
+                    if (ry) { int ki = ry->KeyAdd(fbxtime); ry->KeySetValue(ki, static_cast<float>(euler[1])); ry->KeySetInterpolation(ki, rInterp); }
+                    if (rz) { int ki = rz->KeyAdd(fbxtime); rz->KeySetValue(ki, static_cast<float>(euler[2])); rz->KeySetInterpolation(ki, rInterp); }
+                }
+
+                if (rx) rx->KeyModifyEnd();
+                if (ry) ry->KeyModifyEnd();
+                if (rz) rz->KeyModifyEnd();
+            }
+        }
+
+        // Scale
+        if (!nodeAnim.scale.keys.empty())
+        {
+            FbxAnimCurveNode* sNode = fbxNode->LclScaling.GetCurveNode(layer, true);
+            if (sNode)
+            {
+                AddAnimCurve(sNode->CreateCurve(sNode->GetName(), FBXSDK_CURVENODE_COMPONENT_X),
+                             nodeAnim.scale.keys, 0, sInterp);
+                AddAnimCurve(sNode->CreateCurve(sNode->GetName(), FBXSDK_CURVENODE_COMPONENT_Y),
+                             nodeAnim.scale.keys, 1, sInterp);
+                AddAnimCurve(sNode->CreateCurve(sNode->GetName(), FBXSDK_CURVENODE_COMPONENT_Z),
+                             nodeAnim.scale.keys, 2, sInterp);
+            }
+        }
+    }
+
+    void AddAnimations(const Scene& scene)
+    {
+        if (scene.animations.empty()) return;
+
+        for (const auto& clip : scene.animations)
+        {
+            if (clip.nodeChannels.empty()) continue;
+
+            // 创建 FbxAnimStack
+            FbxAnimStack* animStack = FbxAnimStack::Create(m_fbxScene, clip.name.c_str());
+            FbxTime startFbxTime, stopFbxTime;
+            startFbxTime.SetSecondDouble(clip.startTime);
+            stopFbxTime.SetSecondDouble(clip.endTime);
+            FbxTimeSpan timeSpan;
+            timeSpan.Set(startFbxTime, stopFbxTime);
+            animStack->SetLocalTimeSpan(timeSpan);
+
+            // 创建 FbxAnimLayer
+            FbxAnimLayer* layer = FbxAnimLayer::Create(m_fbxScene, "BaseLayer");
+            animStack->AddMember(layer);
+
+            // 为每个 NodeAnimation 添加曲线
+            for (const auto& nodeAnim : clip.nodeChannels)
+            {
+                auto nodeIt = m_nodeMap.find(nodeAnim.nodeId);
+                if (nodeIt == m_nodeMap.end()) continue;
+
+                AddNodeAnimation(nodeIt->second, nodeAnim, layer);
+            }
+        }
+
+        Logger::Instance().LogInfo(
+            "FbxExporter: exported " + std::to_string(scene.animations.size()) +
+            " animation clip(s).");
     }
 };
 

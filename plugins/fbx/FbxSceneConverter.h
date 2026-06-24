@@ -4,6 +4,7 @@
 #include "mc/core/Scene.h"
 
 #include <unordered_map>
+#include <vector>
 
 namespace fbxsdk {
 class FbxManager;
@@ -12,6 +13,8 @@ class FbxNode;
 class FbxMesh;
 class FbxSurfaceMaterial;
 class FbxFileTexture;
+class FbxAnimStack;
+class FbxAnimLayer;
 } // namespace fbxsdk
 
 namespace mc {
@@ -20,8 +23,6 @@ namespace mc {
 // FbxSceneConverter
 // ============================================================
 // 将 FbxScene 转换为 mc::Scene。
-// Phase09 范围：静态模型 Node / Mesh / Material / Texture。
-// 禁止：Animation / Skeleton / Skin / BlendShape。
 
 class FbxSceneConverter
 {
@@ -37,10 +38,21 @@ private:
     ObjectID GetOrCreateMaterial(fbxsdk::FbxSurfaceMaterial* fbxMat, Scene& mcScene);
     ObjectID GetOrCreateTexture(fbxsdk::FbxFileTexture* fbxTex, Scene& mcScene);
 
+    void ConvertAnimations(fbxsdk::FbxScene* fbxScene, Scene& mcScene);
+    void ConvertAnimStack(fbxsdk::FbxAnimStack* animStack,
+                          fbxsdk::FbxScene* fbxScene,
+                          Scene& mcScene);
+
+    void ConvertSkeleton(fbxsdk::FbxScene* fbxScene, Scene& mcScene);
+
     // FbxSurfaceMaterial 指针 -> mc ObjectID 缓存
     std::unordered_map<fbxsdk::FbxSurfaceMaterial*, mc::ObjectID> m_matCache;
     // FbxFileTexture 指针 -> mc ObjectID 缓存（去重）
     std::unordered_map<fbxsdk::FbxFileTexture*, mc::ObjectID> m_texCache;
+    // FbxNode 指针 -> mc ObjectID 映射（动画转换期间使用）
+    std::unordered_map<fbxsdk::FbxNode*, mc::ObjectID> m_nodeMap;
+    // 临时：meshId → FbxNode（用于骨骼绑定）
+    std::unordered_map<mc::ObjectID, fbxsdk::FbxNode*> m_meshNodeMap;
 };
 
 } // namespace mc

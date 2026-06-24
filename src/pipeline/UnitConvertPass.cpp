@@ -1,4 +1,5 @@
 #include "mc/pipeline/UnitConvertPass.h"
+#include "mc/core/Animation.h"
 #include "mc/common/Logger.h"
 #include <cmath>
 #include <string>
@@ -36,6 +37,18 @@ void UnitConvertPass::ScaleNodeTranslations(Scene& scene) const
     }
 }
 
+void UnitConvertPass::ScaleAnimationTranslations(Scene& scene) const
+{
+    for (auto& clip : scene.animations)
+        for (auto& ch : clip.nodeChannels)
+            for (auto& kf : ch.translation.keys)
+            {
+                kf.value.x *= m_factor;
+                kf.value.y *= m_factor;
+                kf.value.z *= m_factor;
+            }
+}
+
 VoidResult UnitConvertPass::Execute(Scene& scene)
 {
     constexpr float kEpsilon = 1e-9f;
@@ -46,6 +59,7 @@ VoidResult UnitConvertPass::Execute(Scene& scene)
 
     ScaleMeshPositions(scene);
     ScaleNodeTranslations(scene);
+    ScaleAnimationTranslations(scene);
 
     scene.metadata.unitScale *= m_factor;
     scene.metadata.unit = UnitNameFromScaleToMeter(scene.metadata.unitScale);

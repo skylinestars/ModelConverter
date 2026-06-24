@@ -5,6 +5,7 @@ add_library(Plugin_Fbx SHARED
     Plugin_Fbx.cpp
     FbxSceneConverter.cpp
     FbxExporter.cpp
+    FbxMeshHelper.cpp
 )
 
 target_include_directories(Plugin_Fbx PRIVATE

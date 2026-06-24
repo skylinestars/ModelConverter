@@ -1,0 +1,551 @@
+Running main() from F:\WangLuProject\3DExchange\thirdparty\assimp-6.0.5\contrib\googletest\googletest\src\gtest_main.cc
+[==========] Running 7 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 7 tests from FbxAnimationTest
+[ RUN      ] FbxAnimationTest.ImportMaszynaParowa_HasAnimations
+[INFO] FbxSceneConverter: metadata unit=cm unitScale=0.010000 upAxis=1 frontAxis=2 handedness=1 upAxisSign=1 frontAxisParity=2 frontAxisSign=1
+[INFO] FbxSceneConverter: entering root child node "main"
+[INFO] FbxSceneConverter: converting mesh "top"
+[INFO] FbxSceneConverter: mesh "top" ctrl=1777 poly=1752 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "top"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "left_1"
+[INFO] FbxSceneConverter: mesh "left_1" ctrl=70 poly=68 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "left_1"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "right_3"
+[INFO] FbxSceneConverter: mesh "right_3" ctrl=84 poly=82 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "right_3"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "middle_2"
+[INFO] FbxSceneConverter: mesh "middle_2" ctrl=210 poly=208 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "middle_2"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "inside_1"
+[INFO] FbxSceneConverter: mesh "inside_1" ctrl=233 poly=214 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "inside_1"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "ramka"
+[INFO] FbxSceneConverter: mesh "ramka" ctrl=1190 poly=1190 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "ramka"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "back"
+[INFO] FbxSceneConverter: mesh "back" ctrl=193 poly=190 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "back"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_1"
+[INFO] FbxSceneConverter: mesh "noga_1" ctrl=624 poly=602 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_1"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_2"
+[INFO] FbxSceneConverter: mesh "noga_2" ctrl=648 poly=626 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_2"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_3"
+[INFO] FbxSceneConverter: mesh "noga_3" ctrl=768 poly=746 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_3"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_4"
+[INFO] FbxSceneConverter: mesh "noga_4" ctrl=648 poly=626 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_4"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "belka_r"
+[INFO] FbxSceneConverter: mesh "belka_r" ctrl=460 poly=462 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "belka_r"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "belka_r.001"
+[INFO] FbxSceneConverter: mesh "belka_r.001" ctrl=460 poly=462 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "belka_r.001"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube"
+[INFO] FbxSceneConverter: mesh "Cube" ctrl=636 poly=636 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.001"
+[INFO] FbxSceneConverter: mesh "Cube.001" ctrl=636 poly=636 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.001"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.100"
+[INFO] FbxSceneConverter: mesh "Cylinder.100" ctrl=128 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.100"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.101"
+[INFO] FbxSceneConverter: mesh "Cylinder.101" ctrl=64 poly=50 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.101"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.102"
+[INFO] FbxSceneConverter: mesh "Cylinder.102" ctrl=64 poly=50 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.102"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.103"
+[INFO] FbxSceneConverter: mesh "Cylinder.103" ctrl=64 poly=50 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.103"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.002"
+[INFO] FbxSceneConverter: mesh "Cube.002" ctrl=32 poly=20 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.002"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.003"
+[INFO] FbxSceneConverter: mesh "Cube.003" ctrl=660 poly=601 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.003"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.011"
+[INFO] FbxSceneConverter: mesh "Cube.011" ctrl=88 poly=78 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.011"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "moga_r"
+[INFO] FbxSceneConverter: mesh "moga_r" ctrl=24 poly=12 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "moga_r"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "moga_r.001"
+[INFO] FbxSceneConverter: mesh "moga_r.001" ctrl=24 poly=12 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "moga_r.001"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol"
+[INFO] FbxSceneConverter: mesh "noga_r_dol" ctrl=202 poly=188 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.001"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.001" ctrl=216 poly=264 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.001"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.002"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.002" ctrl=202 poly=188 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.002"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.008"
+[INFO] FbxSceneConverter: mesh "Cube.008" ctrl=1008 poly=1024 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.008"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.004"
+[INFO] FbxSceneConverter: mesh "Cylinder.004" ctrl=128 poly=98 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.004"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.014"
+[INFO] FbxSceneConverter: mesh "Cube.014" ctrl=1501 poly=1496 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.014"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.012"
+[INFO] FbxSceneConverter: mesh "Cylinder.012" ctrl=112 poly=98 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.012"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.013"
+[INFO] FbxSceneConverter: mesh "Cylinder.013" ctrl=372 poly=327 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.013"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Plane.005"
+[INFO] FbxSceneConverter: mesh "Plane.005" ctrl=257 poly=208 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Plane.005"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.008"
+[INFO] FbxSceneConverter: mesh "Cylinder.008" ctrl=32 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.008"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.009"
+[INFO] FbxSceneConverter: mesh "Cylinder.009" ctrl=340 poly=310 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.009"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.010"
+[INFO] FbxSceneConverter: mesh "Cylinder.010" ctrl=240 poly=226 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.010"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.011"
+[INFO] FbxSceneConverter: mesh "Cylinder.011" ctrl=304 poly=257 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.011"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.018"
+[INFO] FbxSceneConverter: mesh "Cylinder.018" ctrl=288 poly=258 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.018"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.006"
+[INFO] FbxSceneConverter: mesh "Cylinder.006" ctrl=1420 poly=1402 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.006"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder"
+[INFO] FbxSceneConverter: mesh "Cylinder" ctrl=2816 poly=2752 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.001"
+[INFO] FbxSceneConverter: mesh "Cylinder.001" ctrl=1408 poly=1376 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.001"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.002"
+[INFO] FbxSceneConverter: mesh "Cylinder.002" ctrl=1888 poly=1860 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.002"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "gwiazda"
+[INFO] FbxSceneConverter: mesh "gwiazda" ctrl=482 poly=518 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "gwiazda"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Plane"
+[INFO] FbxSceneConverter: mesh "Plane" ctrl=300 poly=306 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Plane"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Plane.003"
+[INFO] FbxSceneConverter: mesh "Plane.003" ctrl=1986 poly=1848 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Plane.003"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "srodek_gwiazda"
+[INFO] FbxSceneConverter: mesh "srodek_gwiazda" ctrl=470 poly=428 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "srodek_gwiazda"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.004"
+[INFO] FbxSceneConverter: mesh "Cube.004" ctrl=224 poly=148 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.004"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.006"
+[INFO] FbxSceneConverter: mesh "Cube.006" ctrl=112 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.006"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.014"
+[INFO] FbxSceneConverter: mesh "Cylinder.014" ctrl=80 poly=62 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.014"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.015"
+[INFO] FbxSceneConverter: mesh "Cylinder.015" ctrl=48 poly=34 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.015"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.019"
+[INFO] FbxSceneConverter: mesh "Cylinder.019" ctrl=1240 poly=1226 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.019"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "gwizada_ozdoba"
+[INFO] FbxSceneConverter: mesh "gwizada_ozdoba" ctrl=864 poly=824 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "gwizada_ozdoba"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.027"
+[INFO] FbxSceneConverter: mesh "Cylinder.027" ctrl=144 poly=122 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.027"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.029"
+[INFO] FbxSceneConverter: mesh "Cylinder.029" ctrl=192 poly=170 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.029"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.031"
+[INFO] FbxSceneConverter: mesh "Cylinder.031" ctrl=216 poly=193 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.031"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.033"
+[INFO] FbxSceneConverter: mesh "Cylinder.033" ctrl=360 poly=337 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.033"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.035"
+[INFO] FbxSceneConverter: mesh "Cylinder.035" ctrl=216 poly=193 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.035"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.037"
+[INFO] FbxSceneConverter: mesh "Cylinder.037" ctrl=480 poly=458 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.037"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.038"
+[INFO] FbxSceneConverter: mesh "Cylinder.038" ctrl=216 poly=194 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.038"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.040"
+[INFO] FbxSceneConverter: mesh "Cylinder.040" ctrl=552 poly=529 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.040"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.009"
+[INFO] FbxSceneConverter: mesh "Cube.009" ctrl=68 poly=66 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.009"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.021"
+[INFO] FbxSceneConverter: mesh "Cylinder.021" ctrl=16 poly=10 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.021"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.022"
+[INFO] FbxSceneConverter: mesh "Cylinder.022" ctrl=12 poly=8 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.022"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.023"
+[INFO] FbxSceneConverter: mesh "Cylinder.023" ctrl=96 poly=92 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.023"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.025"
+[INFO] FbxSceneConverter: mesh "Cube.025" ctrl=332 poly=304 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.025"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.026"
+[INFO] FbxSceneConverter: mesh "Cube.026" ctrl=218 poly=184 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.026"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.089"
+[INFO] FbxSceneConverter: mesh "Cylinder.089" ctrl=54 poly=49 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.089"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Circle.001"
+[INFO] FbxSceneConverter: mesh "Circle.001" ctrl=2594 poly=2560 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Circle.001"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.005"
+[INFO] FbxSceneConverter: mesh "Cube.005" ctrl=84 poly=72 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.005"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.007"
+[INFO] FbxSceneConverter: mesh "Cube.007" ctrl=32 poly=26 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.007"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.005"
+[INFO] FbxSceneConverter: mesh "Cylinder.005" ctrl=160 poly=122 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.005"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.104"
+[INFO] FbxSceneConverter: mesh "Cylinder.104" ctrl=32 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.104"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.007"
+[INFO] FbxSceneConverter: mesh "Cylinder.007" ctrl=128 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.007"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.057"
+[INFO] FbxSceneConverter: mesh "Cylinder.057" ctrl=304 poly=282 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.057"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.106"
+[INFO] FbxSceneConverter: mesh "Cylinder.106" ctrl=304 poly=282 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.106"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.028"
+[INFO] FbxSceneConverter: mesh "Cylinder.028" ctrl=192 poly=170 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.028"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.030"
+[INFO] FbxSceneConverter: mesh "Cylinder.030" ctrl=96 poly=74 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.030"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.032"
+[INFO] FbxSceneConverter: mesh "Cylinder.032" ctrl=96 poly=96 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.032"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.036"
+[INFO] FbxSceneConverter: mesh "Cylinder.036" ctrl=96 poly=96 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.036"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.039"
+[INFO] FbxSceneConverter: mesh "Cylinder.039" ctrl=96 poly=96 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.039"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.055"
+[INFO] FbxSceneConverter: mesh "Cylinder.055" ctrl=96 poly=74 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.055"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.085"
+[INFO] FbxSceneConverter: mesh "Cylinder.085" ctrl=32 poly=32 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.085"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.090"
+[INFO] FbxSceneConverter: mesh "Cylinder.090" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.090"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.091"
+[INFO] FbxSceneConverter: mesh "Cylinder.091" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.091"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.092"
+[INFO] FbxSceneConverter: mesh "Cylinder.092" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.092"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.093"
+[INFO] FbxSceneConverter: mesh "Cylinder.093" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.093"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.094"
+[INFO] FbxSceneConverter: mesh "Cylinder.094" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.094"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.095"
+[INFO] FbxSceneConverter: mesh "Cylinder.095" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.095"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.096"
+[INFO] FbxSceneConverter: mesh "Cylinder.096" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.096"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.097"
+[INFO] FbxSceneConverter: mesh "Cylinder.097" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.097"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.098"
+[INFO] FbxSceneConverter: mesh "Cylinder.098" ctrl=120 poly=114 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.098"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.003"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.003" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.003"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.004"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.004" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.004"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.005"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.005" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.005"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.006"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.006" ctrl=48 poly=44 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.006"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.008"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.008" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.008"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.009"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.009" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.009"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.010"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.010" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.010"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.011"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.011" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.011"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.014"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.014" ctrl=42 poly=38 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.014"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.015"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.015" ctrl=42 poly=38 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.015"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.016"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.016" ctrl=42 poly=38 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.016"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.017"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.017" ctrl=42 poly=38 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.017"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.007"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.007" ctrl=48 poly=44 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.007"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.012"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.012" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.012"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "noga_r_dol.013"
+[INFO] FbxSceneConverter: mesh "noga_r_dol.013" ctrl=84 poly=76 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "noga_r_dol.013"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.012"
+[INFO] FbxSceneConverter: mesh "Cube.012" ctrl=24 poly=17 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.012"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.020"
+[INFO] FbxSceneConverter: mesh "Cube.020" ctrl=70 poly=68 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.020"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.062"
+[INFO] FbxSceneConverter: mesh "Cylinder.062" ctrl=22 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.062"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.063"
+[INFO] FbxSceneConverter: mesh "Cylinder.063" ctrl=22 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.063"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.064"
+[INFO] FbxSceneConverter: mesh "Cylinder.064" ctrl=352 poly=336 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.064"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.065"
+[INFO] FbxSceneConverter: mesh "Cylinder.065" ctrl=256 poly=241 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.065"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.066"
+[INFO] FbxSceneConverter: mesh "Cylinder.066" ctrl=22 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.066"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.067"
+[INFO] FbxSceneConverter: mesh "Cylinder.067" ctrl=22 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.067"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.069"
+[INFO] FbxSceneConverter: mesh "Cylinder.069" ctrl=22 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.069"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.074"
+[INFO] FbxSceneConverter: mesh "Cylinder.074" ctrl=112 poly=98 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.074"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.075"
+[INFO] FbxSceneConverter: mesh "Cylinder.075" ctrl=32 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.075"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.017"
+[INFO] FbxSceneConverter: mesh "Cube.017" ctrl=72 poly=72 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.017"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.042"
+[INFO] FbxSceneConverter: mesh "Cylinder.042" ctrl=176 poly=154 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.042"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.043"
+[INFO] FbxSceneConverter: mesh "Cylinder.043" ctrl=188 poly=156 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.043"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.045"
+[INFO] FbxSceneConverter: mesh "Cylinder.045" ctrl=32 poly=18 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.045"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.046"
+[INFO] FbxSceneConverter: mesh "Cylinder.046" ctrl=96 poly=96 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.046"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.047"
+[INFO] FbxSceneConverter: mesh "Cylinder.047" ctrl=112 poly=98 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.047"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.105"
+[INFO] FbxSceneConverter: mesh "Cylinder.105" ctrl=128 poly=122 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.105"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.050"
+[INFO] FbxSceneConverter: mesh "Cylinder.050" ctrl=112 poly=98 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.050"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.051"
+[INFO] FbxSceneConverter: mesh "Cylinder.051" ctrl=64 poly=49 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.051"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.052"
+[INFO] FbxSceneConverter: mesh "Cylinder.052" ctrl=102 poly=88 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.052"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.107"
+[INFO] FbxSceneConverter: mesh "Cylinder.107" ctrl=144 poly=122 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.107"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.018"
+[INFO] FbxSceneConverter: mesh "Cube.018" ctrl=96 poly=96 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.018"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.048"
+[INFO] FbxSceneConverter: mesh "Cylinder.048" ctrl=64 poly=49 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.048"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.049"
+[INFO] FbxSceneConverter: mesh "Cylinder.049" ctrl=102 poly=88 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.049"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.024"
+[INFO] FbxSceneConverter: mesh "Cylinder.024" ctrl=64 poly=36 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.024"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cylinder.025"
+[INFO] FbxSceneConverter: mesh "Cylinder.025" ctrl=32 poly=16 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cylinder.025"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.023"
+[INFO] FbxSceneConverter: mesh "Cube.023" ctrl=160 poly=144 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.023"...
+[INFO] FbxSceneConverter: triangulation succeeded.
+[INFO] FbxSceneConverter: converting mesh "Cube.021"
+[INFO] FbxSceneConverter: mesh "Cube.021" ctrl=24 poly=22 isTriMesh=no
+[INFO] FbxSceneConverter: triangulating mesh "Cube.021"...
+Assertion failed: r>0.0, file S:\Jenkins\pipeline\fbx\src\components\aw\Tesselation\tesselators\geometry\awTess2dConstrainedTriangulate.cpp, line 1072
+
+F:\WangLuProject\3DExchange\build\Debug\mc_tests.exe (进程 8856)已退出，代码为 3。
+要在调试停止时自动关闭控制台，请启用“工具”->“选项”->“调试”->“调试停止时自动关闭控制台”。
+按任意键关闭此窗口. . .

@@ -1,0 +1,26 @@
+---
+description: 
+alwaysApply: true
+enabled: true
+updatedAt: 2026-06-24T02:38:59.001Z
+provider: 
+---
+
+1、使用中文回复。
+2、默认使用C++17标准，优先使用标准库算法，杜绝C风格宏和裸new/delete。使用智能指针（std::unique_ptr、std::shared_ptr）管理内存。优先使用 RAII 模式。
+3、在跨 DLL 接口和可序列化数据结构中，应尽量避免暴露 std::shared_ptr。内部实现优先使用 std::unique_ptr 表达所有权，跨对象引用使用裸指针、Handle 或 ID。这样可以减少 DLL ABI、序列化对象图以及生命周期管理带来的复杂性
+4、c++类不能超过1000行，c++函数不能超过300行，超过需要考虑拆分。
+5、日志需要打印原则：重要流程开始和结束、配置变化、外部资源加载失败、第三方SDK调用失败、数据异常。
+6、代码命名规范：
+-类/类型：帕斯卡命名法（例如：Importer、aiScene）
+-函数：帕斯卡命名法（例如：ReadFile、GetExtension）
+-变量：驼峰命名法（例如：scene、importStep）
+-常量：k 驼峰命名法或大写蛇形命名法（例如：kMaxVertices）
+-成员变量：通常以 m_ 为前缀（例如：mScene）
+-静态变量：通常以 s_ 为前缀
+7、代码格式规范：
+-使用UTF-8编码
+-缩进：4个空格
+-换行符：LF
+-空格：使用空格而不是制表符
+-注释：使用中文注释，英文注释仅用于解释特殊逻辑或性能优化。

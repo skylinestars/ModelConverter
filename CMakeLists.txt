@@ -94,6 +94,7 @@ add_library(mc_pipeline STATIC
     ${MC_SRC_DIR}/pipeline/AxisConvertPass.cpp
     ${MC_SRC_DIR}/pipeline/UnitConvertPass.cpp
     ${MC_SRC_DIR}/pipeline/HandednessFlipPass.cpp
+    ${MC_SRC_DIR}/pipeline/AnimationOptimizePass.cpp
 )
 target_include_directories(mc_pipeline PUBLIC ${MC_INCLUDE_DIR})
 target_link_libraries(mc_pipeline PUBLIC mc_common mc_core)
@@ -146,9 +147,14 @@ add_executable(mc_tests
 #    ${CMAKE_SOURCE_DIR}/tests/unit/GltfPluginTest.cpp
 #    ${CMAKE_SOURCE_DIR}/tests/unit/FbxPluginTest.cpp
 #    ${CMAKE_SOURCE_DIR}/tests/unit/ExporterTest.cpp
-    ${CMAKE_SOURCE_DIR}/tests/unit/GltfExporterTest.cpp
+#    ${CMAKE_SOURCE_DIR}/tests/unit/GltfExporterTest.cpp
 #    ${CMAKE_SOURCE_DIR}/tests/unit/FbxExporterTest.cpp
 #    ${CMAKE_SOURCE_DIR}/tests/unit/ConvertPassTest.cpp
+#    ${CMAKE_SOURCE_DIR}/tests/unit/AnimationOptimizePassTest.cpp
+#    ${CMAKE_SOURCE_DIR}/tests/unit/GltfAnimationTest.cpp
+#    ${CMAKE_SOURCE_DIR}/tests/unit/FbxAnimationTest.cpp
+#    ${CMAKE_SOURCE_DIR}/tests/unit/GltfAnimationExportTest.cpp
+    ${CMAKE_SOURCE_DIR}/tests/unit/FbxAnimationExportTest.cpp
 )
 target_compile_definitions(mc_tests PRIVATE
     CMAKE_TESTS_DATA_DIR="${CMAKE_SOURCE_DIR}/tests/data"
