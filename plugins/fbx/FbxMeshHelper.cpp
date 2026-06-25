@@ -51,7 +51,8 @@ inline FbxVector2 ReadUV(FbxGeometryElementUV* uvElem,
 // ============================================================
 VoidResult FanTriangulateMesh(FbxMesh* fbxMesh,
                                const FbxAMatrix& geoTransform,
-                               Mesh& outMesh)
+                               Mesh& outMesh,
+                               std::vector<std::vector<uint32_t>>* ctrlToOutputMap)
 {
     if (!fbxMesh) return {false, "FbxMeshHelper: null mesh"};
 
@@ -59,6 +60,10 @@ VoidResult FanTriangulateMesh(FbxMesh* fbxMesh,
     int polyCount = fbxMesh->GetPolygonCount();
     if (ctrlCount == 0 || polyCount == 0)
         return {true, ""};  // 空 mesh，不是错误
+
+    // 初始化控制点到输出顶点的映射（用于后续蒙皮权重传播）
+    if (ctrlToOutputMap)
+        ctrlToOutputMap->resize(ctrlCount);
 
     // 预计算多边形顶点偏移表（支持 ByPolygonVertex 映射模式）
     std::vector<int> polySizes(polyCount);
@@ -139,6 +144,10 @@ VoidResult FanTriangulateMesh(FbxMesh* fbxMesh,
                     }
 
                     vertexMap[key] = outIdx;
+
+                    // 记录控制点到输出顶点的映射（用于蒙皮权重传播）
+                    if (ctrlToOutputMap)
+                        (*ctrlToOutputMap)[ctrlIdx].push_back(outIdx);
                 }
 
                 outMesh.indices.push_back(outIdx);

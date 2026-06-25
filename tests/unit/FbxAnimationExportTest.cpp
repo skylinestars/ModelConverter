@@ -132,27 +132,46 @@ static size_t CountKeyframes(const mc::Scene& scene)
 }
 
 // ============================================================
-// _fbx_to_glb_ANIM.glb → FBX 导出，保留fbx文件，待导入其他渲染器中查看
+// 测试材质贴图
 // ============================================================
-
-TEST_F(FbxAnimationExportTest, GlbToFbx_AnimationClipsMatch)
+TEST_F(FbxAnimationExportTest, GlbToFbx_Texture)
 {
     // Step 1: GLTF 导入 robot_arm.glb
     mc::Scene scene1;
-    auto r1 = m_gltfImporter->Import(DataDir() + "CesiumMan.glb", scene1);
+    auto r1 = m_gltfImporter->Import(DataDir() + "lz.glb", scene1);
     ASSERT_TRUE(r1.ok) << r1.error;
-    ASSERT_GT(scene1.animations.size(), 0u);
 
-    size_t clipsBefore     = scene1.animations.size();
-    size_t keyframesBefore = CountKeyframes(scene1);
-
-    std::string tempPath = DataDir() + "_glb_to_fbx_skeleton_test.fbx";
+    std::string tempPath = DataDir() + "glb_lz.fbx";
     mc::ExportContext ctx;
     ctx.outputPath = tempPath;
 
     auto r2 = m_fbxExporter->Export(scene1, ctx);
     ASSERT_TRUE(r2.ok) << r2.error;
 }
+
+// ============================================================
+// 测试普通动画
+// ============================================================
+TEST_F(FbxAnimationExportTest, GlbToFbx_Animation)
+{
+    // Step 1: GLTF 导入 robot_arm.glb
+    mc::Scene scene1;
+    auto r1 = m_gltfImporter->Import(DataDir() + "maszyna_parowa.glb", scene1);
+    ASSERT_TRUE(r1.ok) << r1.error;
+    ASSERT_GT(scene1.animations.size(), 0u);
+
+    size_t clipsBefore = scene1.animations.size();
+    size_t keyframesBefore = CountKeyframes(scene1);
+
+    std::string tempPath = DataDir() + "glb_maszyna_parowa.fbx";
+    mc::ExportContext ctx;
+    ctx.outputPath = tempPath;
+
+    auto r2 = m_fbxExporter->Export(scene1, ctx);
+    ASSERT_TRUE(r2.ok) << r2.error;
+}
+
+
 //
 //TEST_F(FbxAnimationExportTest, GlbToFbx_RoundTrip_DurationMatches)
 //{

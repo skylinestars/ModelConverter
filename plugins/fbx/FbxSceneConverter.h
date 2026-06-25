@@ -53,6 +53,9 @@ private:
     std::unordered_map<fbxsdk::FbxNode*, mc::ObjectID> m_nodeMap;
     // 临时：meshId → FbxNode（用于骨骼绑定）
     std::unordered_map<mc::ObjectID, fbxsdk::FbxNode*> m_meshNodeMap;
+    // 临时：meshId → 控制点到输出顶点的映射（用于蒙皮权重传播）
+    // ctrlToOutputMap[ctrlIdx] = 该控制点对应的所有输出顶点索引列表
+    std::unordered_map<mc::ObjectID, std::vector<std::vector<uint32_t>>> m_ctrlToOutputMaps;
 };
 
 } // namespace mc

@@ -162,7 +162,13 @@ ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scen
 
         FbxDouble3 diff = phong->Diffuse.Get();
         mcMat.diffuse = Vec3((float)diff[0], (float)diff[1], (float)diff[2]);
-        mcMat.opacity = 1.0f - (float)phong->TransparencyFactor.Get();
+
+        // FBX TransparencyFactor 语义：0.0=不透明，1.0=全透明
+        // 但 Mixamo 等导出器会设为 1.0 作为默认值，导致 opacity=0
+        // 确保 opacity 不低于合理最小值
+        float transpFactor = (float)phong->TransparencyFactor.Get();
+        mcMat.opacity = 1.0f - transpFactor;
+        if (mcMat.opacity <= 0.05f) mcMat.opacity = 1.0f;
 
         FbxDouble3 amb = phong->Ambient.Get();
         mcMat.ambient = Vec3((float)amb[0], (float)amb[1], (float)amb[2]);
@@ -230,7 +236,10 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
     Mesh& mcMesh = mcScene.AddMesh();
     mcMesh.name = fbxNode->GetName();
 
-    VoidResult triResult = FanTriangulateMesh(fbxMesh, GetGeometricTransform(fbxNode), mcMesh);
+    // 构建控制点到输出顶点的映射（后续蒙皮权重传播需要）
+    // GeometricTransform 烘焙到顶点：与 ConvertNode 的 localMatrix（不含 geo）一致
+    std::vector<std::vector<uint32_t>> ctrlToOutputMap;
+    VoidResult triResult = FanTriangulateMesh(fbxMesh, GetGeometricTransform(fbxNode), mcMesh, &ctrlToOutputMap);
     if (!triResult.ok)
     {
         Logger::Instance().LogWarn(
@@ -238,6 +247,9 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
             fbxNode->GetName() + "\": " + triResult.error);
         return INVALID_ID;
     }
+
+    // 存储映射供 ConvertSkeleton 使用
+    m_ctrlToOutputMaps[mcMesh.id] = std::move(ctrlToOutputMap);
 
     // ---- Section 构建（按 material 分组）----
     std::map<int, MeshSection> sectionMap;
@@ -305,10 +317,7 @@ void FbxSceneConverter::ConvertNode(FbxNode* fbxNode, Scene& mcScene, mc::Object
     // ... rest remains the same
 
 
-    // Local transform（不包含 Geometric TRS）
-    // Geometric TRS 仅作用于当前节点几何体，不应影响子节点层级变换。
-    // 这里保持节点 localMatrix 与 FBX 节点本地变换一致；
-    // Geometric TRS 在 ConvertMesh 中烘焙到顶点/法线。
+    // Local transform（与原始行为一致，不合并 GeometricTransform）
     FbxAMatrix localTrs = fbxNode->EvaluateLocalTransform();
     mcNode->localMatrix = ToMatrix4(localTrs);
 
@@ -316,7 +325,11 @@ void FbxSceneConverter::ConvertNode(FbxNode* fbxNode, Scene& mcScene, mc::Object
     if (parentId != INVALID_ID)
     {
         mc::Node* parent = mcScene.FindNode(parentId);
-        if (parent) parent->children.push_back(nodeId);
+        if (parent)
+        {
+            mcNode->parent = parentId;
+            parent->children.push_back(nodeId);
+        }
     }
     else
     {
@@ -486,6 +499,11 @@ void FbxSceneConverter::ConvertAnimStack(FbxAnimStack* animStack,
 
     if (!clip.nodeChannels.empty())
         mcScene.animations.push_back(std::move(clip));
+
+    Logger::Instance().LogInfo(
+        "FbxSceneConverter::ConvertAnimStack: clip=\"" + clip.name + "\"" +
+        " duration={" + std::to_string(clip.startTime) + "s ~ " + std::to_string(clip.endTime) + "s}" +
+        " nodeChannels=" + std::to_string(clip.nodeChannels.size()));
 }
 
 // ============================================================
@@ -499,11 +517,47 @@ void FbxSceneConverter::ConvertAnimations(FbxScene* fbxScene, Scene& mcScene)
     Logger::Instance().LogInfo(
         "FbxSceneConverter: found " + std::to_string(animStackCount) + " animation stack(s).");
 
+    // 给每个动画 clip 打印通道摘要
     for (int i = 0; i < animStackCount; ++i)
     {
         FbxAnimStack* animStack = fbxScene->GetSrcObject<FbxAnimStack>(i);
         if (animStack)
             ConvertAnimStack(animStack, fbxScene, mcScene);
+    }
+
+    // 汇总日志
+    for (const auto& clip : mcScene.animations)
+    {
+        int boneChannels = 0;
+        int nonBoneChannels = 0;
+        for (const auto& ch : clip.nodeChannels)
+        {
+            Node* nd = mcScene.FindNode(ch.nodeId);
+            if (nd && nd->type == NodeType::Bone)
+                ++boneChannels;
+            else
+                ++nonBoneChannels;
+        }
+        Logger::Instance().LogInfo(
+            "  AnimationClip \"" + clip.name + "\": " +
+            std::to_string(clip.nodeChannels.size()) + " channels " +
+            "(bone=" + std::to_string(boneChannels) + " nonBone=" + std::to_string(nonBoneChannels) + ")");
+        // 打印前几个 channel 的 node 名
+        int loggedCount = 0;
+        for (const auto& ch : clip.nodeChannels)
+        {
+            Node* nd = mcScene.FindNode(ch.nodeId);
+            std::string nodeName = nd ? nd->name : "???";
+            bool hasT = !ch.translation.keys.empty();
+            bool hasR = !ch.rotation.keys.empty();
+            bool hasS = !ch.scale.keys.empty();
+            Logger::Instance().LogInfo(
+                "    ch[" + std::to_string(loggedCount) + "] nodeId=" + std::to_string(ch.nodeId) +
+                " \"" + nodeName + "\"" +
+                " T=" + std::to_string(hasT) + " R=" + std::to_string(hasR) + " S=" + std::to_string(hasS) +
+                (hasT ? " T_keys=" + std::to_string(ch.translation.keys.size()) : ""));
+            if (++loggedCount >= 10) break;
+        }
     }
 
     Logger::Instance().LogInfo(
@@ -588,6 +642,11 @@ void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
         int clusterCount = skin->GetClusterCount();
         if (clusterCount == 0) continue;
 
+        Logger::Instance().LogInfo(
+            "FbxSceneConverter::ConvertSkeleton: mesh=\"" + std::string(fbxNode->GetName()) +
+            "\" meshId=" + std::to_string(meshId) +
+            " clusterCount=" + std::to_string(clusterCount));
+
         // 创建 Skeleton
         Skeleton skel;
         skel.id   = mcScene.AllocateId();
@@ -622,10 +681,15 @@ void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
 
             // inverseBindPose（FbxAMatrix → Matrix4）
             FbxAMatrix ibp;
-            cluster->GetTransformLinkMatrix(ibp);  // 骨骼的世界矩阵
+            cluster->GetTransformLinkMatrix(ibp);  // 骨骼的世界矩阵 L_bind
             FbxAMatrix geoMatrix;
-            cluster->GetTransformMatrix(geoMatrix); // 网格的世界矩阵
-            FbxAMatrix invBind = geoMatrix.Inverse() * ibp;
+            cluster->GetTransformMatrix(geoMatrix); // 网格的世界矩阵 M_bind（可能含 GeometricTransform）
+
+            // 逆绑定矩阵 = L_bind^(-1) * M_bind_without_geo
+            // 顶点已在 FanTriangulateMesh 中烘焙了 GeometricTransform
+            // 所以需要从 M_bind 中移除 GeometricTransform，避免双重应用
+            FbxAMatrix meshGeo = GetGeometricTransform(fbxNode);
+            FbxAMatrix invBind = ibp.Inverse() * (geoMatrix * meshGeo.Inverse());
 
             bone.inverseBindPose = ToMatrix4(invBind);
             bone.parentBoneId = INVALID_ID;
@@ -650,6 +714,19 @@ void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
             }
         }
 
+        Logger::Instance().LogInfo(
+            "  Skeleton boneCount=" + std::to_string(skel.bones.size()));
+        for (size_t bi = 0; bi < skel.bones.size() && bi < 10; ++bi)
+        {
+            const Bone& b = skel.bones[bi];
+            Logger::Instance().LogInfo(
+                "    bone[" + std::to_string(bi) + "] id=" + std::to_string(b.id) +
+                " name=\"" + b.name + "\"" +
+                " parentBoneId=" + std::to_string(b.parentBoneId));
+        }
+        if (skel.bones.size() > 10)
+            Logger::Instance().LogInfo("    ... (truncated, total " + std::to_string(skel.bones.size()) + " bones)");
+
         mcScene.skeletons.push_back(std::move(skel));
         mcScene.skins.push_back(std::move(mcSkin));
 
@@ -658,6 +735,12 @@ void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
         if (!mcMesh || mcMesh->positions.empty()) continue;
 
         mcMesh->skinInfluences.resize(mcMesh->positions.size());
+
+        // 查找该 mesh 的控制点到输出顶点映射
+        auto ctrlMapIt = m_ctrlToOutputMaps.find(meshId);
+        const auto& ctrlToOutput = (ctrlMapIt != m_ctrlToOutputMaps.end())
+            ? ctrlMapIt->second
+            : std::vector<std::vector<uint32_t>>{};
 
         for (int ci = 0; ci < clusterCount; ++ci)
         {
@@ -674,13 +757,68 @@ void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
 
             for (int k = 0; k < idxCount; ++k)
             {
-                int vtxIdx = indices[k];
-                if (vtxIdx >= (int)mcMesh->skinInfluences.size()) continue;
+                int ctrlIdx = indices[k];
                 float w = (float)weights[k];
-                if (w > 0.0f)
-                    mcMesh->skinInfluences[vtxIdx].push_back({(uint16_t)boneIdx, w});
+                if (w <= 0.0f) continue;
+
+                // 使用控制点到输出顶点的映射，将权重传播到所有从该控制点产生的输出顶点
+                if (ctrlIdx >= 0 && ctrlIdx < (int)ctrlToOutput.size() && !ctrlToOutput[ctrlIdx].empty())
+                {
+                    for (uint32_t outIdx : ctrlToOutput[ctrlIdx])
+                    {
+                        if (outIdx < mcMesh->skinInfluences.size())
+                            mcMesh->skinInfluences[outIdx].push_back({(uint16_t)boneIdx, w});
+                    }
+                }
+                else
+                {
+                    // 回退：没有映射时直接用控制点索引（兼容旧逻辑）
+                    if (ctrlIdx >= 0 && ctrlIdx < (int)mcMesh->skinInfluences.size())
+                        mcMesh->skinInfluences[ctrlIdx].push_back({(uint16_t)boneIdx, w});
+                }
             }
         }
+
+        // 统计蒙皮权重
+        size_t vertexCount = mcMesh->positions.size();
+        size_t verticesWithSkin = 0;
+        size_t maxInfPerVtx = 0;
+        float totalWeight = 0.0f;
+        size_t totalInfs = 0;
+        for (const auto& infs : mcMesh->skinInfluences)
+        {
+            if (!infs.empty())
+            {
+                ++verticesWithSkin;
+                maxInfPerVtx = std::max(maxInfPerVtx, infs.size());
+                for (const auto& inf : infs)
+                    totalWeight += inf.weight;
+                totalInfs += infs.size();
+            }
+        }
+
+        // 统计控制点到输出顶点的映射膨胀率
+        size_t ctrlCount = ctrlToOutput.size();
+        size_t ctrlWithMultiOut = 0;
+        if (ctrlCount > 0)
+        {
+            for (const auto& outputs : ctrlToOutput)
+                if (outputs.size() > 1) ++ctrlWithMultiOut;
+        }
+        Logger::Instance().LogInfo(
+            "  CtrlMapping: ctrlCount=" + std::to_string(ctrlCount) +
+            " expansionRatio=" + (ctrlCount > 0 ? std::to_string((float)vertexCount / ctrlCount) : "N/A") +
+            " ctrlWithMultiOut=" + std::to_string(ctrlWithMultiOut));
+
+        Logger::Instance().LogInfo(
+            "  SkinWeight: vertices=" + std::to_string(vertexCount) +
+            " verticesWithSkin=" + std::to_string(verticesWithSkin) +
+            " maxInfPerVtx=" + std::to_string(maxInfPerVtx) +
+            " totalInfluences=" + std::to_string(totalInfs) +
+            " avgWeight=" + (totalInfs > 0 ? std::to_string(totalWeight / totalInfs) : "0"));
+        Logger::Instance().LogInfo(
+            "  Skin: skeletonId=" + std::to_string(mcSkin.skeletonId) +
+            " meshId=" + std::to_string(mcSkin.meshId));
     }
 
     if (!mcScene.skeletons.empty())

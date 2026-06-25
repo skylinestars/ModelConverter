@@ -153,8 +153,8 @@ add_executable(mc_tests
 #    ${CMAKE_SOURCE_DIR}/tests/unit/AnimationOptimizePassTest.cpp
 #    ${CMAKE_SOURCE_DIR}/tests/unit/GltfAnimationTest.cpp
 #    ${CMAKE_SOURCE_DIR}/tests/unit/FbxAnimationTest.cpp
-#    ${CMAKE_SOURCE_DIR}/tests/unit/GltfAnimationExportTest.cpp
-    ${CMAKE_SOURCE_DIR}/tests/unit/FbxAnimationExportTest.cpp
+    ${CMAKE_SOURCE_DIR}/tests/unit/GltfAnimationExportTest.cpp
+#    ${CMAKE_SOURCE_DIR}/tests/unit/FbxAnimationExportTest.cpp
 )
 target_compile_definitions(mc_tests PRIVATE
     CMAKE_TESTS_DATA_DIR="${CMAKE_SOURCE_DIR}/tests/data"

@@ -225,13 +225,25 @@ private:
                 { gMat.occlusionTexture.index = it->second;gMat.occlusionTexture.texCoord= mcMat.occlusionTexture.uvSet; }
 
             gMat.emissiveFactor = {mcMat.emissive.x, mcMat.emissive.y, mcMat.emissive.z};
-            gMat.doubleSided    = mcMat.doubleSided;
+
+            // FBX 模型法线经常反向，强制双面渲染避免背面透明
+            gMat.doubleSided = true;
+
             switch (mcMat.alphaMode)
             {
                 case AlphaMode::Mask:  gMat.alphaMode = "MASK"; gMat.alphaCutoff = mcMat.alphaCutoff; break;
                 case AlphaMode::Blend: gMat.alphaMode = "BLEND"; break;
                 default:               gMat.alphaMode = "OPAQUE";
             }
+
+            Logger::Instance().LogInfo(
+                "GltfBuilder::AddMaterials: \"" + mcMat.name + "\"" +
+                " baseColor=(" + std::to_string(mcMat.baseColor.x) + "," +
+                                 std::to_string(mcMat.baseColor.y) + "," +
+                                 std::to_string(mcMat.baseColor.z) + "," +
+                                 std::to_string(mcMat.baseColor.w) + ")" +
+                " alphaMode=" + gMat.alphaMode +
+                " doubleSided=" + (gMat.doubleSided ? "true" : "false"));
 
             m_matIdxMap[mcMat.id] = (int)m_model.materials.size();
             m_model.materials.push_back(std::move(gMat));
@@ -300,13 +312,18 @@ private:
     {
         if (scene.skeletons.empty() || scene.skins.empty()) return;
 
+        Logger::Instance().LogInfo(
+            "GltfBuilder::AddSkins: skeletons=" + std::to_string(scene.skeletons.size()) +
+            " skins=" + std::to_string(scene.skins.size()));
+
         // skeleton/mesh → bone node index 查找
         std::unordered_map<ObjectID, int> boneNodeIdx;
         for (size_t i = 0; i < scene.nodes.size(); ++i)
             boneNodeIdx[scene.nodes[i].id] = (int)i;
 
-        for (const auto& mcSkin : scene.skins)
+        for (size_t si = 0; si < scene.skins.size(); ++si)
         {
+            const auto& mcSkin = scene.skins[si];
             const Skeleton* skel = nullptr;
             for (const auto& s : scene.skeletons)
                 if (s.id == mcSkin.skeletonId) { skel = &s; break; }
@@ -318,18 +335,78 @@ private:
             // joints: gltf node indices (通过 bone.name → node.name)
             size_t boneCount = skel->bones.size();
             gSkin.joints.resize(boneCount, INVALID_ID);
+            int matchedCount = 0;
+            int unmatchedCount = 0;
             for (size_t bi = 0; bi < boneCount; ++bi)
             {
                 for (size_t ni = 0; ni < scene.nodes.size(); ++ni)
                 {
                     if (scene.nodes[ni].name == skel->bones[bi].name)
-                    { gSkin.joints[bi] = (int)ni; break; }
+                    { gSkin.joints[bi] = (int)ni; ++matchedCount; break; }
+                }
+                if (gSkin.joints[bi] == INVALID_ID)
+                {
+                    ++unmatchedCount;
+                    if (unmatchedCount <= 5)
+                        Logger::Instance().LogWarn(
+                            "GltfBuilder::AddSkins: bone \"" + skel->bones[bi].name +
+                            "\" has no matching scene node (skin[" + std::to_string(si) + "])");
                 }
             }
 
-            // skeleton root node（取第一个 joint）
+            // 诊断日志：打印每个 joint node 的类型、父子关系（ChatGPT 建议排查 hierarchy）
+            Logger::Instance().LogInfo(
+                "  skin[" + std::to_string(si) + "] joint nodes hierarchy:");
+            std::unordered_set<int> jointSet(gSkin.joints.begin(), gSkin.joints.end());
+            for (size_t bi = 0; bi < boneCount; ++bi)
+            {
+                int ni = gSkin.joints[bi];
+                if (ni < 0 || ni >= (int)scene.nodes.size()) continue;
+                const auto& nd = scene.nodes[ni];
+                // 向上追溯 parent 链
+                std::string parentChain = nd.name;
+                ObjectID pid = nd.parent;
+                int depth = 0;
+                while (pid != INVALID_ID && depth < 10)
+                {
+                    auto pIt = boneNodeIdx.find(pid);
+                    if (pIt != boneNodeIdx.end())
+                        parentChain = scene.nodes[pIt->second].name + " → " + parentChain;
+                    else
+                        parentChain = "?(id=" + std::to_string(pid) + ") → " + parentChain;
+                    pid = (pIt != boneNodeIdx.end() && pIt->second < (int)scene.nodes.size())
+                        ? scene.nodes[pIt->second].parent : INVALID_ID;
+                    if (pIt == boneNodeIdx.end() || pIt->second >= (int)scene.nodes.size()) break;
+                    ++depth;
+                }
+                Logger::Instance().LogInfo(
+                    "    joint[" + std::to_string(bi) + "] node=" + std::to_string(ni) +
+                    " \"" + nd.name + "\" type=" + std::to_string((int)nd.type) +
+                    " children=" + std::to_string(nd.children.size()) +
+                    " chain: " + parentChain);
+            }
+
+            // skeleton root node：GLTF 规范中 skeleton 就是 root joint（joints[0]）
+            // 大多数工具（包括 Blender）依赖它来识别骨架层级
             if (!gSkin.joints.empty() && gSkin.joints[0] >= 0)
                 gSkin.skeleton = gSkin.joints[0];
+
+            // 日志：joint 索引
+            Logger::Instance().LogInfo(
+                "  skin[" + std::to_string(si) + "] name=\"" + gSkin.name + "\"" +
+                " skeletonId=" + std::to_string(mcSkin.skeletonId) +
+                " meshId=" + std::to_string(mcSkin.meshId) +
+                " joints=" + std::to_string(matchedCount) + "/" + std::to_string(boneCount) +
+                (unmatchedCount > 0 ? " (unmatched=" + std::to_string(unmatchedCount) + ")" : ""));
+            std::string jointStr = "    joints: [";
+            for (size_t bi = 0; bi < std::min(boneCount, size_t(10)); ++bi)
+            {
+                if (bi > 0) jointStr += ",";
+                jointStr += std::to_string(gSkin.joints[bi]);
+            }
+            if (boneCount > 10) jointStr += ",...";
+            jointStr += "]";
+            Logger::Instance().LogInfo(jointStr);
 
             // inverseBindMatrices
             std::vector<float> ibm(boneCount * 16);
@@ -339,6 +416,21 @@ private:
                 for (int i = 0; i < 16; ++i)
                     ibm[bi * 16 + i] = m[i];
             }
+
+            // 日志：第一个骨骼的 IBM 矩阵（诊断用）
+            if (boneCount > 0)
+            {
+                const float* m0 = &ibm[0];
+                Logger::Instance().LogInfo(
+                    "    IBM[0] row0=(" + std::to_string(m0[0]) + "," + std::to_string(m0[4]) + "," + std::to_string(m0[8]) + "," + std::to_string(m0[12]) + ")");
+                Logger::Instance().LogInfo(
+                    "    IBM[0] row1=(" + std::to_string(m0[1]) + "," + std::to_string(m0[5]) + "," + std::to_string(m0[9]) + "," + std::to_string(m0[13]) + ")");
+                Logger::Instance().LogInfo(
+                    "    IBM[0] row2=(" + std::to_string(m0[2]) + "," + std::to_string(m0[6]) + "," + std::to_string(m0[10]) + "," + std::to_string(m0[14]) + ")");
+                Logger::Instance().LogInfo(
+                    "    IBM[0] row3=(" + std::to_string(m0[3]) + "," + std::to_string(m0[7]) + "," + std::to_string(m0[11]) + "," + std::to_string(m0[15]) + ")");
+            }
+
             gSkin.inverseBindMatrices = PushAccessor(
                 ibm.data(), ibm.size() * sizeof(float),
                 TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_MAT4,
@@ -385,6 +477,35 @@ private:
             // Phase15: 蒙皮权重 → JOINTS_0 + WEIGHTS_0
             if (!mcMesh.skinInfluences.empty())
             {
+                // 统计蒙皮权重
+                size_t skinnedVerts = 0;
+                size_t totalInfs = 0;
+                float maxW = 0.0f;
+                uint16_t maxJoint = 0;
+                uint16_t minJoint = 65535;
+                for (const auto& infs : mcMesh.skinInfluences)
+                {
+                    if (!infs.empty())
+                    {
+                        ++skinnedVerts;
+                        totalInfs += infs.size();
+                        for (const auto& inf : infs)
+                        {
+                            maxW = std::max(maxW, inf.weight);
+                            maxJoint = std::max(maxJoint, inf.joint);
+                            minJoint = std::min(minJoint, inf.joint);
+                        }
+                    }
+                }
+                Logger::Instance().LogInfo(
+                    "GltfBuilder::AddMeshes: mesh=\"" + mcMesh.name + "\"" +
+                    " positions=" + std::to_string(mcMesh.positions.size()) +
+                    " skinnedVerts=" + std::to_string(skinnedVerts) +
+                    " totalInfs=" + std::to_string(totalInfs) +
+                    " maxJointIdx=" + std::to_string(maxJoint) +
+                    " minJointIdx=" + std::to_string(minJoint) +
+                    " maxWeight=" + std::to_string(maxW));
+
                 std::vector<uint16_t> joints;
                 std::vector<float>   weights;
                 joints.reserve(mcMesh.positions.size() * 4);
@@ -412,6 +533,10 @@ private:
                     prim.attributes["JOINTS_0"] = jAcc;
                     prim.attributes["WEIGHTS_0"] = wAcc;
                 }
+
+                Logger::Instance().LogInfo(
+                    "  JOINTS_0 accessor=" + std::to_string(jAcc) +
+                    " WEIGHTS_0 accessor=" + std::to_string(wAcc));
             }
 
             m_meshIdxMap[mcMesh.id] = (int)m_model.meshes.size();
@@ -427,6 +552,14 @@ private:
         for (size_t i = 0; i < scene.skins.size(); ++i)
             meshSkinIdx[scene.skins[i].meshId] = (int)i;
 
+        Logger::Instance().LogInfo(
+            "GltfBuilder::AddNodes: total nodes=" + std::to_string(scene.nodes.size()) +
+            " rootNodes=" + std::to_string(scene.rootNodes.size()));
+
+        int meshNodeCount = 0;
+        int skinnedNodeCount = 0;
+        int boneNodeCount = 0;
+
         for (const auto& mcNode : scene.nodes)
         {
             tinygltf::Node gNode;
@@ -437,8 +570,20 @@ private:
                     gNode.mesh = it->second;
                 // 设置 skin 引用
                 auto si = meshSkinIdx.find(mcNode.meshIds[0]);
-                if (si != meshSkinIdx.end()) gNode.skin = si->second;
+                if (si != meshSkinIdx.end())
+                {
+                    gNode.skin = si->second;
+                    ++skinnedNodeCount;
+                    Logger::Instance().LogInfo(
+                        "  node \"" + mcNode.name + "\" meshIdx=" + std::to_string(gNode.mesh) +
+                        " skinIdx=" + std::to_string(gNode.skin) +
+                        " type=" + (mcNode.type == NodeType::Bone ? "Bone" : "Mesh"));
+                }
+                ++meshNodeCount;
             }
+
+            if (mcNode.type == NodeType::Bone)
+                ++boneNodeCount;
 
             const float* m = mcNode.localMatrix.m;
             bool isIdentity = true;
@@ -453,6 +598,12 @@ private:
             m_nodeIdxMap[mcNode.id] = (int)m_model.nodes.size();
             m_model.nodes.push_back(std::move(gNode));
         }
+
+        Logger::Instance().LogInfo(
+            "  nodes summary: meshNodes=" + std::to_string(meshNodeCount) +
+            " skinnedNodes=" + std::to_string(skinnedNodeCount) +
+            " boneNodes=" + std::to_string(boneNodeCount));
+
         for (const auto& mcNode : scene.nodes)
         {
             int parentIdx = m_nodeIdxMap[mcNode.id];
@@ -504,6 +655,9 @@ private:
         for (const auto& anim : m_model.animations)
             for (const auto& ch : anim.channels)
                 animatedNodes.insert(ch.target_node);
+        Logger::Instance().LogInfo(
+            "GltfBuilder::FixAnimatedNodeMatrices: " + std::to_string(animatedNodes.size()) +
+            " nodes with animation will be converted from matrix to TRS.");
         for (int idx : animatedNodes)
         {
             auto& node = m_model.nodes[idx];
@@ -539,6 +693,8 @@ private:
             tinygltf::Animation gAnim;
             gAnim.name = clip.name;
 
+            int tCount = 0, rCount = 0, sCount = 0;
+
             // 遍历所有 NodeAnimation 通道
             for (const auto& nodeAnim : clip.nodeChannels)
             {
@@ -548,19 +704,47 @@ private:
 
                 // Translation
                 if (!nodeAnim.translation.keys.empty())
+                {
                     AddChannel(gAnim, nodeAnim.translation, targetNodeIdx, "translation");
+                    ++tCount;
+                }
 
                 // Rotation
                 if (!nodeAnim.rotation.keys.empty())
+                {
                     AddChannel(gAnim, nodeAnim.rotation, targetNodeIdx, "rotation");
+                    ++rCount;
+                }
 
                 // Scale
                 if (!nodeAnim.scale.keys.empty())
+                {
                     AddChannel(gAnim, nodeAnim.scale, targetNodeIdx, "scale");
+                    ++sCount;
+                }
             }
 
             if (!gAnim.channels.empty())
+            {
+                // 统计各插值类型的通道数量
+                int linCount = 0, stepCount = 0, cubicCount = 0;
+                for (const auto& s : gAnim.samplers)
+                {
+                    if (s.interpolation == "LINEAR") ++linCount;
+                    else if (s.interpolation == "STEP") ++stepCount;
+                    else if (s.interpolation == "CUBICSPLINE") ++cubicCount;
+                }
+
+                Logger::Instance().LogInfo(
+                    "GltfBuilder::AddAnimations: clip=\"" + gAnim.name + "\"" +
+                    " channels=" + std::to_string(gAnim.channels.size()) +
+                    " samplers=" + std::to_string(gAnim.samplers.size()) +
+                    " interpolate=(L=" + std::to_string(linCount) +
+                    " S=" + std::to_string(stepCount) +
+                    " C=" + std::to_string(cubicCount) + ")" +
+                    " (T=" + std::to_string(tCount) + " R=" + std::to_string(rCount) + " S=" + std::to_string(sCount) + ")");
                 m_model.animations.push_back(std::move(gAnim));
+            }
         }
 
         // 修复：动画 channel 节点不能同时有 matrix 属性，改为 TRS
@@ -583,34 +767,24 @@ private:
     {
         if (track.keys.empty()) return;
 
+        bool isCubic = (track.interpolation == AnimationInterpolation::CubicSpline);
+        size_t keyCount = track.keys.size();
+
         // 构建时间戳数组
         std::vector<float> times;
-        times.reserve(track.keys.size());
+        times.reserve(keyCount);
         for (const auto& kf : track.keys)
             times.push_back(static_cast<float>(kf.time));
 
         // 构建值数组
+        size_t perFrame = isCubic ? 9 : 3;  // inTan(xyz) + value(xyz) + outTan(xyz)
         std::vector<float> values;
-        size_t perFrame = (track.interpolation == AnimationInterpolation::CubicSpline) ? 9 : 3;
-        values.reserve(track.keys.size() * perFrame);
-
+        values.reserve(keyCount * perFrame);
         for (const auto& kf : track.keys)
         {
-            if (track.interpolation == AnimationInterpolation::CubicSpline)
-            {
-                values.push_back(kf.inTan.x);
-                values.push_back(kf.inTan.y);
-                values.push_back(kf.inTan.z);
-            }
-            values.push_back(kf.value.x);
-            values.push_back(kf.value.y);
-            values.push_back(kf.value.z);
-            if (track.interpolation == AnimationInterpolation::CubicSpline)
-            {
-                values.push_back(kf.outTan.x);
-                values.push_back(kf.outTan.y);
-                values.push_back(kf.outTan.z);
-            }
+            if (isCubic) { values.push_back(kf.inTan.x);  values.push_back(kf.inTan.y);  values.push_back(kf.inTan.z); }
+            values.push_back(kf.value.x); values.push_back(kf.value.y); values.push_back(kf.value.z);
+            if (isCubic) { values.push_back(kf.outTan.x); values.push_back(kf.outTan.y); values.push_back(kf.outTan.z); }
         }
 
         int inputAcc = PushAccessor(
@@ -620,10 +794,21 @@ private:
             {static_cast<double>(times.front())},
             {static_cast<double>(times.back())});
 
+        // CubicSpline 规范：count = 3 * keyCount（in-tangent + value + out-tangent 各一组）
+        int outputCount = isCubic ? (int)(keyCount * 3) : (int)keyCount;
         int outputAcc = PushAccessor(
             values.data(), values.size() * sizeof(float),
             TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3,
-            (int)track.keys.size(), 0);
+            outputCount, 0);
+
+        // 运行时校验：input 和 output 逻辑 key 数必须一致
+        int inputLogicalKeys = (int)times.size();
+        int outputLogicalKeys = isCubic ? (outputCount / 3) : outputCount;
+        if (inputLogicalKeys != outputLogicalKeys)
+            Logger::Instance().LogError(
+                "GltfBuilder::AddChannel(VEC3): count mismatch! inputKeys=" +
+                std::to_string(inputLogicalKeys) + " outputKeys=" + std::to_string(outputLogicalKeys) +
+                " path=" + path + " interp=" + InterpToString(track.interpolation));
 
         tinygltf::AnimationSampler sampler;
         sampler.input         = inputAcc;
@@ -647,35 +832,22 @@ private:
     {
         if (track.keys.empty()) return;
 
+        bool isCubic = (track.interpolation == AnimationInterpolation::CubicSpline);
+        size_t keyCount = track.keys.size();
+
         std::vector<float> times;
-        times.reserve(track.keys.size());
+        times.reserve(keyCount);
         for (const auto& kf : track.keys)
             times.push_back(static_cast<float>(kf.time));
 
+        size_t perFrame = isCubic ? 12 : 4;  // inTan(xyzw) + value(xyzw) + outTan(xyzw)
         std::vector<float> values;
-        size_t perFrame = (track.interpolation == AnimationInterpolation::CubicSpline) ? 12 : 4;
-        values.reserve(track.keys.size() * perFrame);
-
+        values.reserve(keyCount * perFrame);
         for (const auto& kf : track.keys)
         {
-            if (track.interpolation == AnimationInterpolation::CubicSpline)
-            {
-                values.push_back(kf.inTan.x);
-                values.push_back(kf.inTan.y);
-                values.push_back(kf.inTan.z);
-                values.push_back(kf.inTan.w);
-            }
-            values.push_back(kf.value.x);
-            values.push_back(kf.value.y);
-            values.push_back(kf.value.z);
-            values.push_back(kf.value.w);
-            if (track.interpolation == AnimationInterpolation::CubicSpline)
-            {
-                values.push_back(kf.outTan.x);
-                values.push_back(kf.outTan.y);
-                values.push_back(kf.outTan.z);
-                values.push_back(kf.outTan.w);
-            }
+            if (isCubic) { values.push_back(kf.inTan.x); values.push_back(kf.inTan.y); values.push_back(kf.inTan.z); values.push_back(kf.inTan.w); }
+            values.push_back(kf.value.x); values.push_back(kf.value.y); values.push_back(kf.value.z); values.push_back(kf.value.w);
+            if (isCubic) { values.push_back(kf.outTan.x); values.push_back(kf.outTan.y); values.push_back(kf.outTan.z); values.push_back(kf.outTan.w); }
         }
 
         int inputAcc = PushAccessor(
@@ -685,10 +857,21 @@ private:
             {static_cast<double>(times.front())},
             {static_cast<double>(times.back())});
 
+        // CubicSpline 规范：count = 3 * keyCount（in-tangent + value + out-tangent 各一组）
+        int outputCount = isCubic ? (int)(keyCount * 3) : (int)keyCount;
         int outputAcc = PushAccessor(
             values.data(), values.size() * sizeof(float),
             TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC4,
-            (int)track.keys.size(), 0);
+            outputCount, 0);
+
+        // 运行时校验：input 和 output 逻辑 key 数必须一致
+        int inputLogicalKeys = (int)times.size();
+        int outputLogicalKeys = isCubic ? (outputCount / 3) : outputCount;
+        if (inputLogicalKeys != outputLogicalKeys)
+            Logger::Instance().LogError(
+                "GltfBuilder::AddChannel(VEC4): count mismatch! inputKeys=" +
+                std::to_string(inputLogicalKeys) + " outputKeys=" + std::to_string(outputLogicalKeys) +
+                " path=" + path + " interp=" + InterpToString(track.interpolation));
 
         tinygltf::AnimationSampler sampler;
         sampler.input         = inputAcc;

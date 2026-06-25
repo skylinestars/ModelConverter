@@ -280,6 +280,9 @@ private:
     {
         auto* fbxNode = FbxNode::Create(m_fbxScene, mcNode.name.c_str());
 
+        // 设置旋转顺序为 EulerXYZ，与 QuatToEulerDegrees 保持一致
+        fbxNode->SetRotationOrder(FbxNode::eSourcePivot, FbxEuler::eOrderXYZ);
+
         // localMatrix -> FbxAMatrix
         const float* m = mcNode.localMatrix.m;
         FbxAMatrix mat;
@@ -344,34 +347,56 @@ private:
     }
 
     // ---- Animations（Phase14）----
-    // Quaternion → Euler 角度（度），使用 ZYX 旋转顺序
+    // Quaternion → Euler 角度（度），EulerXYZ 旋转顺序
     static FbxDouble3 QuatToEulerDegrees(const Quaternion& q)
     {
-        // 标准化四元数
-        float len2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
-        float x = q.x / std::sqrt(len2);
-        float y = q.y / std::sqrt(len2);
-        float z = q.z / std::sqrt(len2);
-        float w = q.w / std::sqrt(len2);
+        float invLen = 1.0f / std::sqrt(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w);
+        float x = q.x * invLen, y = q.y * invLen, z = q.z * invLen, w = q.w * invLen;
 
-        // ZYX 内旋 → Euler (roll, pitch, yaw) = (zRot, xRot, yRot)
-        float sinRCosP = 2.0f * (w * x + y * z);
-        float cosRCosP = 1.0f - 2.0f * (x * x + y * y);
-        float rollZ = std::atan2(sinRCosP, cosRCosP);
-
-        float sinP    = 2.0f * (w * y - z * x);
-        float pitchX;
-        if (std::abs(sinP) >= 1.0f)
-            pitchX = std::copysign(3.14159265f / 2.0f, sinP);
-        else
-            pitchX = std::asin(sinP);
-
-        float sinYCosP = 2.0f * (w * z + x * y);
-        float cosYCosP = 1.0f - 2.0f * (y * y + z * z);
-        float yawY = std::atan2(sinYCosP, cosYCosP);
+        float sinRy = 2.0f * (w * y - z * x);
+        sinRy = std::clamp(sinRy, -1.0f, 1.0f);
 
         constexpr float kRadToDeg = 180.0f / 3.14159265358979f;
-        return FbxDouble3(pitchX * kRadToDeg, yawY * kRadToDeg, rollZ * kRadToDeg);
+        return FbxDouble3(
+            std::atan2(2.0f * (w * x + y * z), 1.0f - 2.0f * (x * x + y * y)) * kRadToDeg,
+            std::asin(sinRy) * kRadToDeg,
+            std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z)) * kRadToDeg
+        );
+    }
+
+    // 归一化角度到 (-180, 180]
+    static double NormalizeAngle(double a)
+    {
+        return a - std::floor((a + 180.0) / 360.0) * 360.0;
+    }
+
+    // EulerXYZ 替代解：(X+180, 180-Y, Z+180) 给出相同的旋转
+    static FbxDouble3 AltEuler(const FbxDouble3& e)
+    {
+        return FbxDouble3(
+            NormalizeAngle(e[0] + 180.0),
+            NormalizeAngle(180.0 - e[1]),
+            NormalizeAngle(e[2] + 180.0)
+        );
+    }
+
+    // 从主解和替代解中选出与 prev 最连续的欧拉表示（先逐轴 unwrap 再比距离）
+    static FbxDouble3 UnwrapEuler(const FbxDouble3& curr, const FbxDouble3& prev)
+    {
+        FbxDouble3 candidates[2] = { curr, AltEuler(curr) };
+
+        // 对每个候选先做逐轴 unwrap（用 floor 公式，对任意输入都正确）
+        for (auto& c : candidates)
+            for (int i = 0; i < 3; ++i)
+                c[i] -= std::floor((c[i] - prev[i] + 180.0) / 360.0) * 360.0;
+
+        auto sqDist = [](const FbxDouble3& a, const FbxDouble3& b) {
+            double dx = a[0]-b[0], dy = a[1]-b[1], dz = a[2]-b[2];
+            return dx*dx + dy*dy + dz*dz;
+        };
+
+        return sqDist(candidates[0], prev) <= sqDist(candidates[1], prev)
+            ? candidates[0] : candidates[1];
     }
 
     void AddAnimCurve(FbxAnimCurve* curve, const std::vector<KeyFrame<float>>& keys,
@@ -439,7 +464,7 @@ private:
             }
         }
 
-        // Rotation: Quaternion → Euler（度），与 MakeSceneNode 的 mat.GetR() 保持一致
+        // Rotation: Quaternion → Euler（度），逐帧 unwrap 保证角度连续
         if (!nodeAnim.rotation.keys.empty())
         {
             FbxAnimCurveNode* rNode = fbxNode->LclRotation.GetCurveNode(layer, true);
@@ -453,13 +478,15 @@ private:
                 if (ry) ry->KeyModifyBegin();
                 if (rz) rz->KeyModifyBegin();
 
+                FbxDouble3 prevEuler(0.0, 0.0, 0.0);
+                bool hasPrev = false;
+
                 for (const auto& kf : nodeAnim.rotation.keys)
                 {
-                    // 用 FBX SDK 内置转换，与 MakeSceneNode 的 mat.GetR() 一致
-                    FbxQuaternion fbxQ(kf.value.x, kf.value.y, kf.value.z, kf.value.w);
-                    FbxAMatrix rotMtx;
-                    rotMtx.SetQ(fbxQ);
-                    FbxVector4 euler = rotMtx.GetR();
+                    FbxDouble3 euler = QuatToEulerDegrees(kf.value);
+
+                    if (hasPrev)
+                        euler = UnwrapEuler(euler, prevEuler);
 
                     FbxTime fbxtime;
                     fbxtime.SetSecondDouble(kf.time);
@@ -467,6 +494,9 @@ private:
                     if (rx) { int ki = rx->KeyAdd(fbxtime); rx->KeySetValue(ki, static_cast<float>(euler[0])); rx->KeySetInterpolation(ki, rInterp); }
                     if (ry) { int ki = ry->KeyAdd(fbxtime); ry->KeySetValue(ki, static_cast<float>(euler[1])); ry->KeySetInterpolation(ki, rInterp); }
                     if (rz) { int ki = rz->KeyAdd(fbxtime); rz->KeySetValue(ki, static_cast<float>(euler[2])); rz->KeySetInterpolation(ki, rInterp); }
+
+                    prevEuler = euler;
+                    hasPrev = true;
                 }
 
                 if (rx) rx->KeyModifyEnd();

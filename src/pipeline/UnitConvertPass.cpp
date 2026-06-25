@@ -49,6 +49,22 @@ void UnitConvertPass::ScaleAnimationTranslations(Scene& scene) const
             }
 }
 
+void UnitConvertPass::ScaleSkeletonIBMs(Scene& scene) const
+{
+    // 逆绑定矩阵的平移分量（列主序 m[12], m[13], m[14]）也需要缩放
+    // 因为它们是世界空间的位移，必须与顶点单位的缩放保持一致
+    for (auto& skel : scene.skeletons)
+    {
+        for (auto& bone : skel.bones)
+        {
+            float* m = bone.inverseBindPose.m;
+            m[12] *= m_factor;   // translation X
+            m[13] *= m_factor;   // translation Y
+            m[14] *= m_factor;   // translation Z
+        }
+    }
+}
+
 VoidResult UnitConvertPass::Execute(Scene& scene)
 {
     constexpr float kEpsilon = 1e-9f;
@@ -60,6 +76,7 @@ VoidResult UnitConvertPass::Execute(Scene& scene)
     ScaleMeshPositions(scene);
     ScaleNodeTranslations(scene);
     ScaleAnimationTranslations(scene);
+    ScaleSkeletonIBMs(scene);
 
     scene.metadata.unitScale *= m_factor;
     scene.metadata.unit = UnitNameFromScaleToMeter(scene.metadata.unitScale);
