@@ -32,9 +32,13 @@ static void BuildBasisMatrix(const AxisRemap& r, float outR[16])
     for (int i = 0; i < 16; ++i) outR[i] = 0.0f;
     outR[15] = 1.0f;
 
-    outR[0 * 4 + r.srcX] = r.signX;
-    outR[1 * 4 + r.srcY] = r.signY;
-    outR[2 * 4 + r.srcZ] = r.signZ;
+    // 列主序存储 m[col*4+row]，令 R * v = RemapVec3(v)：
+    //   row 0: R[0, srcX] = signX → 索引 srcX*4+0
+    //   row 1: R[1, srcY] = signY → 索引 srcY*4+1
+    //   row 2: R[2, srcZ] = signZ → 索引 srcZ*4+2
+    outR[r.srcX * 4 + 0] = r.signX;
+    outR[r.srcY * 4 + 1] = r.signY;
+    outR[r.srcZ * 4 + 2] = r.signZ;
 }
 
 static void Transpose4x4(const float inM[16], float outM[16])
@@ -61,8 +65,8 @@ static void Mul4x4(const float a[16], const float b[16], float outM[16])
 static AxisRemap GetRemap(UpAxis from, UpAxis to)
 {
     if (from == to) return {0, 1, 2, 1.f, 1.f, 1.f};   // identity
-    if (from == UpAxis::Y && to == UpAxis::Z) return {0, 2, 1, 1.f, 1.f,-1.f}; // YUp→ZUp: swap Y↔Z, negate old-Y
-    if (from == UpAxis::Z && to == UpAxis::Y) return {0, 2, 1, 1.f,-1.f, 1.f}; // ZUp→YUp: swap Z↔Y, negate old-Z
+    if (from == UpAxis::Y && to == UpAxis::Z) return {0, 2, 1, 1.f,-1.f, 1.f}; // YUp→ZUp: (x,-z,y)  旧+Y(上)→新+Z(上)
+    if (from == UpAxis::Z && to == UpAxis::Y) return {0, 2, 1, 1.f, 1.f,-1.f}; // ZUp→YUp: (x,z,-y)  旧+Z(上)→新+Y(上)
     if (from == UpAxis::X && to == UpAxis::Y) return {1, 0, 2,-1.f, 1.f, 1.f}; // XUp→YUp
     if (from == UpAxis::Y && to == UpAxis::X) return {1, 0, 2, 1.f,-1.f, 1.f}; // YUp→XUp
     if (from == UpAxis::X && to == UpAxis::Z) return {1, 2, 0,-1.f, 1.f, 1.f}; // XUp→ZUp

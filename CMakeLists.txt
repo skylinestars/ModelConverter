@@ -120,13 +120,23 @@ target_link_libraries(mc_cli PRIVATE mc_common mc_core mc_pluginmgr mc_pipeline)
 target_include_directories(mc_cli PRIVATE ${MC_INCLUDE_DIR})
 target_compile_definitions(mc_cli PRIVATE
     PLUGIN_ASSIMP_FILENAME="$<TARGET_FILE_NAME:Plugin_Assimp>"
+    PLUGIN_FBX_FILENAME="$<TARGET_FILE_NAME:Plugin_Fbx>"
+    PLUGIN_GLTF_FILENAME="$<TARGET_FILE_NAME:Plugin_Gltf>"
 )
 mc_enable_utf8(mc_cli)
-add_dependencies(mc_cli Plugin_Assimp)
+add_dependencies(mc_cli Plugin_Assimp Plugin_Fbx Plugin_Gltf)
 add_custom_command(TARGET mc_cli POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:assimp>
         $<TARGET_FILE:Plugin_Assimp>
+        $<TARGET_FILE:Plugin_Fbx>
+        $<TARGET_FILE:Plugin_Gltf>
+        $<TARGET_FILE_DIR:mc_cli>
+)
+# 将 FBX SDK DLL 复制到 mc_cli 输出目录
+add_custom_command(TARGET mc_cli POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<CONFIG:Debug>,${CMAKE_SOURCE_DIR}/thirdparty/fbxsdk/2020.3.9/lib/x64/debug/libfbxsdk.dll,${CMAKE_SOURCE_DIR}/thirdparty/fbxsdk/2020.3.9/lib/x64/release/libfbxsdk.dll>
         $<TARGET_FILE_DIR:mc_cli>
 )
 

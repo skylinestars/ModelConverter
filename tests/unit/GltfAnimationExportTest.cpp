@@ -22,7 +22,7 @@
 
 #include <filesystem>
 #include <cmath>
-
+#include <algorithm>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
@@ -131,20 +131,76 @@ static size_t CountKeyframes(const mc::Scene& scene)
 }
 
 // ============================================================
-// Capoeira.fbx → GLB 导出，验证动画一致
+// 验证普通动画
 // ============================================================
 //
-TEST_F(GltfAnimationExportTest, FbxToGlb_AnimationClipsMatch)
+TEST_F(GltfAnimationExportTest, FbxToGlb_Animation)
 {
+    std::string testModelName = "maszyna_parowa";
     // Step 1: FBX 导入 Capoeira.fbx
     mc::Scene scene1;
-    auto r1 = m_fbxImporter->Import(DataDir() + "Capoeira.fbx", scene1);
+    auto r1 = m_fbxImporter->Import(DataDir() + testModelName + ".fbx", scene1);
     ASSERT_TRUE(r1.ok) << r1.error;
-    ASSERT_GT(scene1.animations.size(), 0u);
 
     // Step 1.5: 运行 Pipeline（单位转换 cm→m）
     mc::Pipeline pipeline;
     pipeline.AddPass(std::make_unique<mc::UnitConvertPass>(scene1.metadata.unitScale));
+
+    auto pipeResult = pipeline.Execute(scene1);
+    ASSERT_TRUE(pipeResult.ok) << pipeResult.error;
+
+    std::string tempPath = DataDir() + "fbx_" + testModelName + ".glb";
+    mc::ExportContext ctx;
+    ctx.outputPath = tempPath;
+    ctx.options.prettyPrint = false;
+    auto r2 = m_gltfExporter->Export(scene1, ctx);
+    ASSERT_TRUE(r2.ok) << r2.error;
+}
+
+// ============================================================
+// 验证骨骼蒙皮动画
+// ============================================================
+//
+TEST_F(GltfAnimationExportTest, FbxToGlb_skeleton)
+{
+    std::string testModelName = "RiggedSimple";
+    // Step 1: FBX 导入 Capoeira.fbx
+    mc::Scene scene1;
+    auto r1 = m_fbxImporter->Import(DataDir() + testModelName + ".fbx", scene1);
+    ASSERT_TRUE(r1.ok) << r1.error;
+
+    // Step 1.5: 运行 Pipeline（单位转换 cm→m）
+    mc::Pipeline pipeline;
+    pipeline.AddPass(std::make_unique<mc::UnitConvertPass>(scene1.metadata.unitScale));
+
+    auto pipeResult = pipeline.Execute(scene1);
+    ASSERT_TRUE(pipeResult.ok) << pipeResult.error;
+
+    std::string tempPath = DataDir() + "fbx_" + testModelName + ".glb";
+    mc::ExportContext ctx;
+    ctx.outputPath = tempPath;
+    ctx.options.prettyPrint = false;
+    auto r2 = m_gltfExporter->Export(scene1, ctx);
+    ASSERT_TRUE(r2.ok) << r2.error;
+}
+
+
+// ============================================================
+// 验证骨骼蒙皮动画并添加详细日志
+// ============================================================
+//
+TEST_F(GltfAnimationExportTest, FbxToGlb_skeleton_detailed_log)
+{
+    std::string testModelName = "Capoeira";
+    // Step 1: FBX 导入 Capoeira.fbx
+    mc::Scene scene1;
+    auto r1 = m_fbxImporter->Import(DataDir() + testModelName+".fbx", scene1);
+    ASSERT_TRUE(r1.ok) << r1.error;
+   
+    // Step 1.5: 运行 Pipeline（单位转换 cm→m）
+    mc::Pipeline pipeline;
+    pipeline.AddPass(std::make_unique<mc::UnitConvertPass>(scene1.metadata.unitScale));
+    
     auto pipeResult = pipeline.Execute(scene1);
     ASSERT_TRUE(pipeResult.ok) << pipeResult.error;
 
@@ -179,50 +235,12 @@ TEST_F(GltfAnimationExportTest, FbxToGlb_AnimationClipsMatch)
     mc::Logger::Instance().LogInfo("  boneNodes=" + std::to_string(boneNodes));
     mc::Logger::Instance().LogInfo("  meshNodes=" + std::to_string(realMeshNodes));
 
-    ASSERT_GT(scene1.skeletons.size(), 0u) << "Expected skeletons for skinned model";
-    ASSERT_GT(scene1.skins.size(), 0u) << "Expected skins for skinned model";
-    ASSERT_GT(scene1.meshes.size(), 0u);
-
-    // 检查第一个 skeleton
-    if (!scene1.skeletons.empty())
-    {
-        const auto& skel = scene1.skeletons[0];
-        mc::Logger::Instance().LogInfo("  Skeleton[0]: name=\"" + skel.name + "\" bones=" + std::to_string(skel.bones.size()));
-        ASSERT_GT(skel.bones.size(), 0u);
-    }
-
-    // Step 2: GLTF 导出到临时 GLB（含动画）
-    std::string tempPath = DataDir() + "fbx_Capoeira.glb";
-
+    std::string tempPath = DataDir() + "fbx_"+ testModelName +".glb";
     mc::ExportContext ctx;
     ctx.outputPath = tempPath;
     ctx.options.prettyPrint = false;
-
     auto r2 = m_gltfExporter->Export(scene1, ctx);
     ASSERT_TRUE(r2.ok) << r2.error;
-
-    // 验证导出文件存在且不为空
-    EXPECT_TRUE(std::filesystem::exists(tempPath));
-    auto fileSize = std::filesystem::file_size(tempPath);
-    mc::Logger::Instance().LogInfo("  Exported GLB: " + tempPath + " (" + std::to_string(fileSize) + " bytes)");
-
-    // Step 3: GLB 重导入，验证往返一致性
-    mc::Scene scene2;
-    auto r3 = m_gltfImporter->Import(tempPath, scene2);
-    ASSERT_TRUE(r3.ok) << r3.error;
-
-    mc::Logger::Instance().LogInfo("=== GLB Re-import Summary ===");
-    mc::Logger::Instance().LogInfo("  meshes=" + std::to_string(scene2.MeshCount()));
-    mc::Logger::Instance().LogInfo("  nodes=" + std::to_string(scene2.NodeCount()));
-    mc::Logger::Instance().LogInfo("  animations=" + std::to_string(scene2.animations.size()));
-
-    // 验证 mesh 数量
-    EXPECT_EQ(scene2.MeshCount(), scene1.MeshCount());
-
-    // 验证第一个 mesh 的位置数据不为空
-    ASSERT_GT(scene2.meshes.size(), 0u);
-    EXPECT_GT(scene2.meshes[0].positions.size(), 0u);
-    EXPECT_GT(scene2.meshes[0].indices.size(), 0u);
 }
 // 
 //

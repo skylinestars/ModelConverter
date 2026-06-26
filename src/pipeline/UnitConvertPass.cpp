@@ -51,8 +51,6 @@ void UnitConvertPass::ScaleAnimationTranslations(Scene& scene) const
 
 void UnitConvertPass::ScaleSkeletonIBMs(Scene& scene) const
 {
-    // 逆绑定矩阵的平移分量（列主序 m[12], m[13], m[14]）也需要缩放
-    // 因为它们是世界空间的位移，必须与顶点单位的缩放保持一致
     for (auto& skel : scene.skeletons)
     {
         for (auto& bone : skel.bones)

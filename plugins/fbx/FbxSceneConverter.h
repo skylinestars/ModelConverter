@@ -45,6 +45,9 @@ private:
 
     void ConvertSkeleton(fbxsdk::FbxScene* fbxScene, Scene& mcScene);
 
+    // 检测并剥除根节点上由 FBX 导出器写入的单位补偿 scale
+    void StripUnitCompensationScale(Scene& mcScene);
+
     // FbxSurfaceMaterial 指针 -> mc ObjectID 缓存
     std::unordered_map<fbxsdk::FbxSurfaceMaterial*, mc::ObjectID> m_matCache;
     // FbxFileTexture 指针 -> mc ObjectID 缓存（去重）

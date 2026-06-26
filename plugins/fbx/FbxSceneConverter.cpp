@@ -232,6 +232,17 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
     if (ctrlCount == 0 || polyCount == 0)
         return INVALID_ID;
 
+    // 若 FBX 网格没有显式法线（部分导出器只写几何体，依赖查看器自行计算法线）
+    // 则调用 FBX SDK 从面法线+光滑组生成，与 FBX Review 的行为保持一致。
+    // 不带参数默认：pOverwrite=false（不覆盖已有法线），pByCtrlPoint=false（逐多边形顶点）
+    if (fbxMesh->GetElementNormalCount() == 0)
+    {
+        fbxMesh->GenerateNormals();
+        Logger::Instance().LogInfo(
+            std::string("FbxSceneConverter: mesh \"") + fbxNode->GetName() +
+            "\" has no normals, generated from geometry");
+    }
+
     // 扇形三角化 + 顶点解包（委托给 FbxMeshHelper）
     Mesh& mcMesh = mcScene.AddMesh();
     mcMesh.name = fbxNode->GetName();
@@ -542,27 +553,72 @@ void FbxSceneConverter::ConvertAnimations(FbxScene* fbxScene, Scene& mcScene)
             "  AnimationClip \"" + clip.name + "\": " +
             std::to_string(clip.nodeChannels.size()) + " channels " +
             "(bone=" + std::to_string(boneChannels) + " nonBone=" + std::to_string(nonBoneChannels) + ")");
-        // 打印前几个 channel 的 node 名
-        int loggedCount = 0;
-        for (const auto& ch : clip.nodeChannels)
-        {
-            Node* nd = mcScene.FindNode(ch.nodeId);
-            std::string nodeName = nd ? nd->name : "???";
-            bool hasT = !ch.translation.keys.empty();
-            bool hasR = !ch.rotation.keys.empty();
-            bool hasS = !ch.scale.keys.empty();
-            Logger::Instance().LogInfo(
-                "    ch[" + std::to_string(loggedCount) + "] nodeId=" + std::to_string(ch.nodeId) +
-                " \"" + nodeName + "\"" +
-                " T=" + std::to_string(hasT) + " R=" + std::to_string(hasR) + " S=" + std::to_string(hasS) +
-                (hasT ? " T_keys=" + std::to_string(ch.translation.keys.size()) : ""));
-            if (++loggedCount >= 10) break;
-        }
     }
 
     Logger::Instance().LogInfo(
         "FbxSceneConverter: converted " + std::to_string(mcScene.animations.size()) +
         " animation clip(s).");
+}
+
+// ============================================================
+// StripUnitCompensationScale
+// ============================================================
+// 部分 DCC 工具（Blender 关闭 Apply Unit）导出 FBX 时：
+//   - GlobalSettings 声明单位 = cm（GetScaleFactor=1.0）
+//   - 但顶点坐标实际是 Blender 米制（1 unit = 1 m），未乘以 100
+//   - 为让 cm 查看器正确显示，在根节点上写入 scale=100（1/unitScale）作补偿
+//
+// 识别条件：根节点各轴 scale 均约等于 1/unitScale（如 100），且 unitScale < 1（非米制文件）
+// 处理：
+//   1. 从根节点 localMatrix 中除去该 scale（恢复为 1）
+//   2. 将 meta.unitScale 设为 1.0——顶点坐标已是米制，UnitConvertPass 无需再缩放
+void FbxSceneConverter::StripUnitCompensationScale(Scene& mcScene)
+{
+    const float unitScale = mcScene.metadata.unitScale;
+    // 仅对 unitScale < 1 的文件（cm / mm 等）检测，meter 文件（unitScale=1）跳过
+    if (unitScale >= 1.0f - 1e-4f) return;
+
+    const float expectedCompScale = 1.0f / unitScale;  // 如 cm → 100
+    const float tolerance         = expectedCompScale * 0.05f;
+
+    bool anyStripped = false;
+    for (ObjectID rootId : mcScene.rootNodes)
+    {
+        Node* nd = mcScene.FindNode(rootId);
+        if (!nd) continue;
+
+        float* m = nd->localMatrix.m;
+        // 提取各轴缩放量（列向量的模长）
+        float sx = std::sqrt(m[0]*m[0] + m[1]*m[1] + m[2]*m[2]);
+        float sy = std::sqrt(m[4]*m[4] + m[5]*m[5] + m[6]*m[6]);
+        float sz = std::sqrt(m[8]*m[8] + m[9]*m[9] + m[10]*m[10]);
+
+        if (std::abs(sx - expectedCompScale) < tolerance &&
+            std::abs(sy - expectedCompScale) < tolerance &&
+            std::abs(sz - expectedCompScale) < tolerance)
+        {
+            // 将旋转-缩放列除以 expectedCompScale，保留旋转方向，移除缩放因子
+            for (int col = 0; col < 3; ++col)
+                for (int row = 0; row < 3; ++row)
+                    m[col * 4 + row] /= expectedCompScale;
+
+            Logger::Instance().LogInfo(
+                std::string("FbxSceneConverter: stripped unit-compensation scale (") +
+                std::to_string(expectedCompScale) +
+                ") from root node \"" + nd->name + "\"");
+            anyStripped = true;
+        }
+    }
+
+    if (anyStripped)
+    {
+        // 顶点坐标与节点平移量已是米制，告知 UnitConvertPass 无需再缩放
+        mcScene.metadata.unitScale = 1.0f;
+        mcScene.metadata.unit      = "m";
+        Logger::Instance().LogInfo(
+            "FbxSceneConverter: unit-compensation scale stripped; "
+            "meta.unitScale reset to 1.0 (positions already in meters)");
+    }
 }
 
 // ============================================================
@@ -598,12 +654,15 @@ VoidResult FbxSceneConverter::Convert(FbxManager* manager, FbxScene* fbxScene, S
 
     for (int i = 0; i < root->GetChildCount(); ++i)
     {
-        FbxNode* child = root->GetChild(i);
-        Logger::Instance().LogInfo(
-            std::string("FbxSceneConverter: entering root child node \"") +
-            (child ? child->GetName() : "null") + "\"");
         ConvertNode(root->GetChild(i), mcScene, INVALID_ID);
     }
+
+    // 检测并剥除根节点上的"单位补偿 scale"
+    // 部分 FBX 导出器（如 Blender 关闭 Apply Unit 时）不转换顶点坐标，
+    // 而是在根节点上写入 scale=1/unitScale（如 cm 文件写 scale=100）来补偿单位差。
+    // 我们读出的顶点坐标此时已是真实米制值，不需要 UnitConvertPass 再缩放；
+    // 但 scale=100 若原样写入 GLB，会导致 Blender 等工具显示的骨骼可视化放大 100 倍。
+    StripUnitCompensationScale(mcScene);
 
     // Phase15: 骨骼蒙皮
     ConvertSkeleton(fbxScene, mcScene);
@@ -716,16 +775,6 @@ void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
 
         Logger::Instance().LogInfo(
             "  Skeleton boneCount=" + std::to_string(skel.bones.size()));
-        for (size_t bi = 0; bi < skel.bones.size() && bi < 10; ++bi)
-        {
-            const Bone& b = skel.bones[bi];
-            Logger::Instance().LogInfo(
-                "    bone[" + std::to_string(bi) + "] id=" + std::to_string(b.id) +
-                " name=\"" + b.name + "\"" +
-                " parentBoneId=" + std::to_string(b.parentBoneId));
-        }
-        if (skel.bones.size() > 10)
-            Logger::Instance().LogInfo("    ... (truncated, total " + std::to_string(skel.bones.size()) + " bones)");
 
         mcScene.skeletons.push_back(std::move(skel));
         mcScene.skins.push_back(std::move(mcSkin));
@@ -816,9 +865,6 @@ void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
             " maxInfPerVtx=" + std::to_string(maxInfPerVtx) +
             " totalInfluences=" + std::to_string(totalInfs) +
             " avgWeight=" + (totalInfs > 0 ? std::to_string(totalWeight / totalInfs) : "0"));
-        Logger::Instance().LogInfo(
-            "  Skin: skeletonId=" + std::to_string(mcSkin.skeletonId) +
-            " meshId=" + std::to_string(mcSkin.meshId));
     }
 
     if (!mcScene.skeletons.empty())

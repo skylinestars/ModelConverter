@@ -316,11 +316,6 @@ private:
             "GltfBuilder::AddSkins: skeletons=" + std::to_string(scene.skeletons.size()) +
             " skins=" + std::to_string(scene.skins.size()));
 
-        // skeleton/mesh → bone node index 查找
-        std::unordered_map<ObjectID, int> boneNodeIdx;
-        for (size_t i = 0; i < scene.nodes.size(); ++i)
-            boneNodeIdx[scene.nodes[i].id] = (int)i;
-
         for (size_t si = 0; si < scene.skins.size(); ++si)
         {
             const auto& mcSkin = scene.skins[si];
@@ -354,38 +349,6 @@ private:
                 }
             }
 
-            // 诊断日志：打印每个 joint node 的类型、父子关系（ChatGPT 建议排查 hierarchy）
-            Logger::Instance().LogInfo(
-                "  skin[" + std::to_string(si) + "] joint nodes hierarchy:");
-            std::unordered_set<int> jointSet(gSkin.joints.begin(), gSkin.joints.end());
-            for (size_t bi = 0; bi < boneCount; ++bi)
-            {
-                int ni = gSkin.joints[bi];
-                if (ni < 0 || ni >= (int)scene.nodes.size()) continue;
-                const auto& nd = scene.nodes[ni];
-                // 向上追溯 parent 链
-                std::string parentChain = nd.name;
-                ObjectID pid = nd.parent;
-                int depth = 0;
-                while (pid != INVALID_ID && depth < 10)
-                {
-                    auto pIt = boneNodeIdx.find(pid);
-                    if (pIt != boneNodeIdx.end())
-                        parentChain = scene.nodes[pIt->second].name + " → " + parentChain;
-                    else
-                        parentChain = "?(id=" + std::to_string(pid) + ") → " + parentChain;
-                    pid = (pIt != boneNodeIdx.end() && pIt->second < (int)scene.nodes.size())
-                        ? scene.nodes[pIt->second].parent : INVALID_ID;
-                    if (pIt == boneNodeIdx.end() || pIt->second >= (int)scene.nodes.size()) break;
-                    ++depth;
-                }
-                Logger::Instance().LogInfo(
-                    "    joint[" + std::to_string(bi) + "] node=" + std::to_string(ni) +
-                    " \"" + nd.name + "\" type=" + std::to_string((int)nd.type) +
-                    " children=" + std::to_string(nd.children.size()) +
-                    " chain: " + parentChain);
-            }
-
             // skeleton root node：GLTF 规范中 skeleton 就是 root joint（joints[0]）
             // 大多数工具（包括 Blender）依赖它来识别骨架层级
             if (!gSkin.joints.empty() && gSkin.joints[0] >= 0)
@@ -398,15 +361,6 @@ private:
                 " meshId=" + std::to_string(mcSkin.meshId) +
                 " joints=" + std::to_string(matchedCount) + "/" + std::to_string(boneCount) +
                 (unmatchedCount > 0 ? " (unmatched=" + std::to_string(unmatchedCount) + ")" : ""));
-            std::string jointStr = "    joints: [";
-            for (size_t bi = 0; bi < std::min(boneCount, size_t(10)); ++bi)
-            {
-                if (bi > 0) jointStr += ",";
-                jointStr += std::to_string(gSkin.joints[bi]);
-            }
-            if (boneCount > 10) jointStr += ",...";
-            jointStr += "]";
-            Logger::Instance().LogInfo(jointStr);
 
             // inverseBindMatrices
             std::vector<float> ibm(boneCount * 16);
@@ -415,20 +369,6 @@ private:
                 const float* m = skel->bones[bi].inverseBindPose.m;
                 for (int i = 0; i < 16; ++i)
                     ibm[bi * 16 + i] = m[i];
-            }
-
-            // 日志：第一个骨骼的 IBM 矩阵（诊断用）
-            if (boneCount > 0)
-            {
-                const float* m0 = &ibm[0];
-                Logger::Instance().LogInfo(
-                    "    IBM[0] row0=(" + std::to_string(m0[0]) + "," + std::to_string(m0[4]) + "," + std::to_string(m0[8]) + "," + std::to_string(m0[12]) + ")");
-                Logger::Instance().LogInfo(
-                    "    IBM[0] row1=(" + std::to_string(m0[1]) + "," + std::to_string(m0[5]) + "," + std::to_string(m0[9]) + "," + std::to_string(m0[13]) + ")");
-                Logger::Instance().LogInfo(
-                    "    IBM[0] row2=(" + std::to_string(m0[2]) + "," + std::to_string(m0[6]) + "," + std::to_string(m0[10]) + "," + std::to_string(m0[14]) + ")");
-                Logger::Instance().LogInfo(
-                    "    IBM[0] row3=(" + std::to_string(m0[3]) + "," + std::to_string(m0[7]) + "," + std::to_string(m0[11]) + "," + std::to_string(m0[15]) + ")");
             }
 
             gSkin.inverseBindMatrices = PushAccessor(
