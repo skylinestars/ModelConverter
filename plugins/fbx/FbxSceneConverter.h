@@ -42,6 +42,14 @@ private:
     void ConvertAnimStack(fbxsdk::FbxAnimStack* animStack,
                           fbxsdk::FbxScene* fbxScene,
                           Scene& mcScene);
+    // 从 animStack 提取 TRS 节点动画通道到 clip.nodeChannels
+    void ConvertNodeTrsChannels(fbxsdk::FbxAnimStack* animStack,
+                                fbxsdk::FbxScene* fbxScene,
+                                AnimationClip& clip);
+    // 从 animStack 提取 BlendShape 权重通道到 clip.morphChannels
+    void ConvertMorphWeightChannels(fbxsdk::FbxAnimStack* animStack,
+                                    Scene& mcScene,
+                                    AnimationClip& clip);
 
     void ConvertSkeleton(fbxsdk::FbxScene* fbxScene, Scene& mcScene);
 
@@ -59,6 +67,9 @@ private:
     // 临时：meshId → 控制点到输出顶点的映射（用于蒙皮权重传播）
     // ctrlToOutputMap[ctrlIdx] = 该控制点对应的所有输出顶点索引列表
     std::unordered_map<mc::ObjectID, std::vector<std::vector<uint32_t>>> m_ctrlToOutputMaps;
+    // 记录被剥除了单位补偿 scale 的根节点 ID → 被剥除的补偿系数（如 100）
+    // ConvertNodeTrsChannels 用它来同步修正 S/T 动画通道
+    std::unordered_map<mc::ObjectID, float> m_strippedRootScales;
 };
 
 } // namespace mc

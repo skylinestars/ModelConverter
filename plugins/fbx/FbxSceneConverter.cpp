@@ -379,6 +379,74 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
         mcMesh.sections.push_back(sec);
     }
 
+    // ---- BlendShape（Morph Target）----
+    const auto& ctoMap = m_ctrlToOutputMaps[mcMesh.id];
+    const FbxVector4* basePts = fbxMesh->GetControlPoints();
+    FbxAMatrix geoTrs = GetGeometricTransform(fbxNode);
+    int bsDeformerCount = fbxMesh->GetDeformerCount(FbxDeformer::eBlendShape);
+    for (int di = 0; di < bsDeformerCount; ++di)
+    {
+        FbxBlendShape* blendShape = static_cast<FbxBlendShape*>(
+            fbxMesh->GetDeformer(di, FbxDeformer::eBlendShape));
+        if (!blendShape) continue;
+
+        int channelCount = blendShape->GetBlendShapeChannelCount();
+        for (int ci = 0; ci < channelCount; ++ci)
+        {
+            FbxBlendShapeChannel* channel = blendShape->GetBlendShapeChannel(ci);
+            if (!channel) continue;
+
+            int targetCount = channel->GetTargetShapeCount();
+            if (targetCount == 0) continue;
+            // 取全权重目标形状
+            FbxShape* shape = channel->GetTargetShape(targetCount - 1);
+            if (!shape) continue;
+
+            MorphTarget mt;
+            mt.name = channel->GetName();
+            mt.positionDeltas.resize(mcMesh.positions.size(), Vec3(0.0f, 0.0f, 0.0f));
+
+            int sparseCount = shape->GetControlPointIndicesCount();
+            if (sparseCount > 0)
+            {
+                // 稀疏模式：只有部分控制点有位移
+                const int* spIndices = shape->GetControlPointIndices();
+                const FbxVector4* dispPts = shape->GetControlPoints();
+                for (int si = 0; si < sparseCount; ++si)
+                {
+                    int ctrlIdx = spIndices[si];
+                    if (ctrlIdx < 0 || ctrlIdx >= (int)ctoMap.size()) continue;
+                    FbxVector4 base = geoTrs.MultT(basePts[ctrlIdx]);
+                    FbxVector4 disp = geoTrs.MultT(dispPts[si]);
+                    Vec3 d((float)(disp[0]-base[0]), (float)(disp[1]-base[1]), (float)(disp[2]-base[2]));
+                    for (uint32_t outIdx : ctoMap[ctrlIdx])
+                        if (outIdx < (uint32_t)mt.positionDeltas.size())
+                            mt.positionDeltas[outIdx] = d;
+                }
+            }
+            else
+            {
+                // 全量模式：所有控制点都列出
+                const FbxVector4* dispPts = shape->GetControlPoints();
+                int shapeCtrlCount = shape->GetControlPointsCount();
+                for (int pi = 0; pi < shapeCtrlCount && pi < (int)ctoMap.size(); ++pi)
+                {
+                    FbxVector4 base = geoTrs.MultT(basePts[pi]);
+                    FbxVector4 disp = geoTrs.MultT(dispPts[pi]);
+                    Vec3 d((float)(disp[0]-base[0]), (float)(disp[1]-base[1]), (float)(disp[2]-base[2]));
+                    for (uint32_t outIdx : ctoMap[pi])
+                        if (outIdx < (uint32_t)mt.positionDeltas.size())
+                            mt.positionDeltas[outIdx] = d;
+                }
+            }
+            mcMesh.morphTargets.push_back(std::move(mt));
+        }
+    }
+    if (!mcMesh.morphTargets.empty())
+        Logger::Instance().LogInfo(
+            "FbxSceneConverter: mesh \"" + mcMesh.name + "\" morphTargets=" +
+            std::to_string(mcMesh.morphTargets.size()));
+
     return mcMesh.id;
 }
 
@@ -436,7 +504,175 @@ void FbxSceneConverter::ConvertNode(FbxNode* fbxNode, Scene& mcScene, mc::Object
 }
 
 // ============================================================
-// ConvertAnimStack（Phase14）
+// ConvertNodeTrsChannels —— 提取 TRS 节点动画到 clip.nodeChannels
+// ============================================================
+void FbxSceneConverter::ConvertNodeTrsChannels(FbxAnimStack* animStack,
+                                                FbxScene* fbxScene,
+                                                AnimationClip& clip)
+{
+    FbxAnimLayer* layer = animStack->GetMember<FbxAnimLayer>(0);
+    if (!layer) return;
+
+    FbxAnimEvaluator* evaluator = fbxScene->GetAnimationEvaluator();
+
+    auto getInterp = [](FbxAnimCurve* c) -> AnimationInterpolation {
+        if (!c || c->KeyGetCount() == 0)
+            return AnimationInterpolation::Linear;
+        switch (c->KeyGetInterpolation(0)) {
+            case FbxAnimCurveDef::eInterpolationConstant: return AnimationInterpolation::Step;
+            case FbxAnimCurveDef::eInterpolationCubic:   return AnimationInterpolation::CubicSpline;
+            default:                                       return AnimationInterpolation::Linear;
+        }
+    };
+
+    for (auto& [fbxNode, mcNodeId] : m_nodeMap)
+    {
+        FbxAnimCurve* curveTx = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveTy = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveTz = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
+        FbxAnimCurve* curveRx = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveRy = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveRz = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
+        FbxAnimCurve* curveSx = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveSy = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveSz = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+        bool hasTranslate = (curveTx || curveTy || curveTz);
+        bool hasRotate    = (curveRx || curveRy || curveRz);
+        bool hasScale     = (curveSx || curveSy || curveSz);
+        if (!hasTranslate && !hasRotate && !hasScale) continue;
+
+        // 收集所有曲线上的唯一时间点
+        std::set<FbxTime> uniqueTimes;
+        auto collectTimes = [&](FbxAnimCurve* curve) {
+            if (!curve) return;
+            for (int k = 0; k < curve->KeyGetCount(); ++k)
+                uniqueTimes.insert(curve->KeyGetTime(k));
+        };
+        collectTimes(curveTx); collectTimes(curveTy); collectTimes(curveTz);
+        collectTimes(curveRx); collectTimes(curveRy); collectTimes(curveRz);
+        collectTimes(curveSx); collectTimes(curveSy); collectTimes(curveSz);
+        if (uniqueTimes.empty()) continue;
+
+        NodeAnimation nodeAnim;
+        nodeAnim.nodeId = mcNodeId;
+
+        if (hasTranslate)
+        {
+            nodeAnim.translation.interpolation = getInterp(curveTx ? curveTx : (curveTy ? curveTy : curveTz));
+            for (const FbxTime& t : uniqueTimes)
+            {
+                FbxVector4 trans = evaluator->GetNodeLocalTransform(fbxNode, t).GetT();
+                KeyFrame<Vec3> kf;
+                kf.time  = t.GetSecondDouble();
+                kf.value = Vec3((float)trans[0], (float)trans[1], (float)trans[2]);
+                nodeAnim.translation.keys.push_back(kf);
+            }
+        }
+        if (hasRotate)
+        {
+            nodeAnim.rotation.interpolation = getInterp(curveRx ? curveRx : (curveRy ? curveRy : curveRz));
+            for (const FbxTime& t : uniqueTimes)
+            {
+                FbxQuaternion q = evaluator->GetNodeLocalTransform(fbxNode, t).GetQ();
+                KeyFrame<Quaternion> kf;
+                kf.time  = t.GetSecondDouble();
+                kf.value = Quaternion((float)q[0], (float)q[1], (float)q[2], (float)q[3]);
+                nodeAnim.rotation.keys.push_back(kf);
+            }
+        }
+        if (hasScale)
+        {
+            nodeAnim.scale.interpolation = getInterp(curveSx ? curveSx : (curveSy ? curveSy : curveSz));
+            for (const FbxTime& t : uniqueTimes)
+            {
+                FbxVector4 scale = evaluator->GetNodeLocalTransform(fbxNode, t).GetS();
+                KeyFrame<Vec3> kf;
+                kf.time  = t.GetSecondDouble();
+                kf.value = Vec3((float)scale[0], (float)scale[1], (float)scale[2]);
+                nodeAnim.scale.keys.push_back(kf);
+            }
+        }
+        // 若该节点曾被 StripUnitCompensationScale 剥除补偿 scale，
+        // 需同步将 S/T 动画 keys 也除以相同系数，否则动画会把节点拉回 S=100
+        auto strippedIt = m_strippedRootScales.find(mcNodeId);
+        if (strippedIt != m_strippedRootScales.end())
+        {
+            float comp = strippedIt->second;
+            for (auto& kf : nodeAnim.scale.keys)
+                { kf.value.x /= comp; kf.value.y /= comp; kf.value.z /= comp; }
+            for (auto& kf : nodeAnim.translation.keys)
+                { kf.value.x /= comp; kf.value.y /= comp; kf.value.z /= comp; }
+        }
+
+        clip.nodeChannels.push_back(std::move(nodeAnim));
+    }
+}
+
+// ============================================================
+// ConvertMorphWeightChannels —— 提取 BlendShape 权重曲线到 clip.morphChannels
+// ============================================================
+void FbxSceneConverter::ConvertMorphWeightChannels(FbxAnimStack* animStack,
+                                                    Scene& mcScene,
+                                                    AnimationClip& clip)
+{
+    FbxAnimLayer* layer = animStack->GetMember<FbxAnimLayer>(0);
+    if (!layer) return;
+
+    for (auto& mcMesh : mcScene.meshes)
+    {
+        if (mcMesh.morphTargets.empty()) continue;
+
+        auto meshNodeIt = m_meshNodeMap.find(mcMesh.id);
+        if (meshNodeIt == m_meshNodeMap.end()) continue;
+        FbxMesh* fbxMeshPtr = meshNodeIt->second->GetMesh();
+        if (!fbxMeshPtr) continue;
+
+        int bsDeformerCount = fbxMeshPtr->GetDeformerCount(FbxDeformer::eBlendShape);
+        uint32_t morphIdx = 0;
+        for (int di = 0; di < bsDeformerCount; ++di)
+        {
+            FbxBlendShape* blendShape = static_cast<FbxBlendShape*>(
+                fbxMeshPtr->GetDeformer(di, FbxDeformer::eBlendShape));
+            if (!blendShape) continue;
+
+            int channelCount = blendShape->GetBlendShapeChannelCount();
+            for (int ci = 0; ci < channelCount; ++ci, ++morphIdx)
+            {
+                FbxBlendShapeChannel* channel = blendShape->GetBlendShapeChannel(ci);
+                if (!channel) continue;
+
+                FbxAnimCurve* curve = channel->DeformPercent.GetCurve(layer);
+                if (!curve || curve->KeyGetCount() == 0) continue;
+
+                AnimationInterpolation interp = AnimationInterpolation::Linear;
+                switch (curve->KeyGetInterpolation(0)) {
+                    case FbxAnimCurveDef::eInterpolationConstant: interp = AnimationInterpolation::Step; break;
+                    case FbxAnimCurveDef::eInterpolationCubic:   interp = AnimationInterpolation::CubicSpline; break;
+                    default: break;
+                }
+
+                MorphAnimation morphAnim;
+                morphAnim.meshId     = mcMesh.id;
+                morphAnim.morphIndex = morphIdx;
+                morphAnim.weights.interpolation = interp;
+
+                int keyCount = curve->KeyGetCount();
+                for (int k = 0; k < keyCount; ++k)
+                {
+                    KeyFrame<float> kf;
+                    kf.time  = curve->KeyGetTime(k).GetSecondDouble();
+                    kf.value = (float)(curve->KeyGetValue(k) / 100.0);  // FBX 0-100% → 0-1
+                    morphAnim.weights.keys.push_back(kf);
+                }
+                clip.morphChannels.push_back(std::move(morphAnim));
+            }
+        }
+    }
+}
+
+// ============================================================
+// ConvertAnimStack —— 编排层：建 clip → 提取 TRS + Morph → 推入 Scene
 // ============================================================
 void FbxSceneConverter::ConvertAnimStack(FbxAnimStack* animStack,
                                           FbxScene* fbxScene,
@@ -448,17 +684,11 @@ void FbxSceneConverter::ConvertAnimStack(FbxAnimStack* animStack,
     clip.id   = mcScene.AllocateId();
     clip.name = animStack->GetName();
 
-    // 设置动画评估上下文
     fbxScene->SetCurrentAnimationStack(animStack);
-    FbxAnimEvaluator* evaluator = fbxScene->GetAnimationEvaluator();
 
-    // 获取动画时间范围
     FbxTimeSpan timeSpan = animStack->GetLocalTimeSpan();
-    FbxTime startTime = timeSpan.GetStart();
-    FbxTime stopTime  = timeSpan.GetStop();
-
-    clip.startTime = startTime.GetSecondDouble();
-    clip.endTime   = stopTime.GetSecondDouble();
+    clip.startTime = timeSpan.GetStart().GetSecondDouble();
+    clip.endTime   = timeSpan.GetStop().GetSecondDouble();
 
     if (clip.Duration() <= 0.0)
     {
@@ -467,125 +697,19 @@ void FbxSceneConverter::ConvertAnimStack(FbxAnimStack* animStack,
         return;
     }
 
-    // 遍历所有已映射的节点，收集动画数据
-    for (auto& [fbxNode, mcNodeId] : m_nodeMap)
-    {
-        // 检查该节点是否有任何动画曲线
-        FbxAnimLayer* layer = animStack->GetMember<FbxAnimLayer>(0);
-        if (!layer) continue;
+    ConvertNodeTrsChannels(animStack, fbxScene, clip);
+    ConvertMorphWeightChannels(animStack, mcScene, clip);
 
-        FbxAnimCurve* curveTx = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
-        FbxAnimCurve* curveTy = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
-        FbxAnimCurve* curveTz = fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
-
-        FbxAnimCurve* curveRx = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
-        FbxAnimCurve* curveRy = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
-        FbxAnimCurve* curveRz = fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
-
-        FbxAnimCurve* curveSx = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X);
-        FbxAnimCurve* curveSy = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y);
-        FbxAnimCurve* curveSz = fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z);
-
-        // 判断是否有任何动画曲线
-        bool hasTranslate = (curveTx || curveTy || curveTz);
-        bool hasRotate    = (curveRx || curveRy || curveRz);
-        bool hasScale     = (curveSx || curveSy || curveSz);
-
-        if (!hasTranslate && !hasRotate && !hasScale)
-            continue;
-
-        // 收集该节点所有动画曲线上的唯一时间点
-        std::set<FbxTime> uniqueTimes;
-        auto collectTimes = [&](FbxAnimCurve* curve) {
-            if (!curve) return;
-            int keyCount = curve->KeyGetCount();
-            for (int k = 0; k < keyCount; ++k)
-                uniqueTimes.insert(curve->KeyGetTime(k));
-        };
-
-        collectTimes(curveTx); collectTimes(curveTy); collectTimes(curveTz);
-        collectTimes(curveRx); collectTimes(curveRy); collectTimes(curveRz);
-        collectTimes(curveSx); collectTimes(curveSy); collectTimes(curveSz);
-
-        if (uniqueTimes.empty()) continue;
-
-        NodeAnimation nodeAnim;
-        nodeAnim.nodeId = mcNodeId;
-
-        // 判断插值模式：取第一条有效曲线的插值类型
-        auto getInterp = [](FbxAnimCurve* c) -> AnimationInterpolation {
-            if (!c || c->KeyGetCount() == 0)
-                return AnimationInterpolation::Linear;
-            FbxAnimCurveDef::EInterpolationType it = c->KeyGetInterpolation(0);
-            switch (it) {
-                case FbxAnimCurveDef::eInterpolationConstant:
-                    return AnimationInterpolation::Step;
-                case FbxAnimCurveDef::eInterpolationCubic:
-                    return AnimationInterpolation::CubicSpline;
-                default:
-                    return AnimationInterpolation::Linear;
-            }
-        };
-
-        AnimationInterpolation tInterp = getInterp(curveTx ? curveTx : (curveTy ? curveTy : curveTz));
-        AnimationInterpolation rInterp = getInterp(curveRx ? curveRx : (curveRy ? curveRy : curveRz));
-        AnimationInterpolation sInterp = getInterp(curveSx ? curveSx : (curveSy ? curveSy : curveSz));
-
-        if (hasTranslate)
-        {
-            nodeAnim.translation.interpolation = tInterp;
-            for (const FbxTime& t : uniqueTimes)
-            {
-                FbxAMatrix evalMatrix = evaluator->GetNodeLocalTransform(fbxNode, t);
-                FbxVector4 trans = evalMatrix.GetT();
-
-                KeyFrame<Vec3> kf;
-                kf.time  = t.GetSecondDouble();
-                kf.value = Vec3((float)trans[0], (float)trans[1], (float)trans[2]);
-                nodeAnim.translation.keys.push_back(kf);
-            }
-        }
-
-        if (hasRotate)
-        {
-            nodeAnim.rotation.interpolation = rInterp;
-            for (const FbxTime& t : uniqueTimes)
-            {
-                FbxAMatrix evalMatrix = evaluator->GetNodeLocalTransform(fbxNode, t);
-                FbxQuaternion q = evalMatrix.GetQ();
-
-                KeyFrame<Quaternion> kf;
-                kf.time  = t.GetSecondDouble();
-                kf.value = Quaternion((float)q[0], (float)q[1], (float)q[2], (float)q[3]);
-                nodeAnim.rotation.keys.push_back(kf);
-            }
-        }
-
-        if (hasScale)
-        {
-            nodeAnim.scale.interpolation = sInterp;
-            for (const FbxTime& t : uniqueTimes)
-            {
-                FbxAMatrix evalMatrix = evaluator->GetNodeLocalTransform(fbxNode, t);
-                FbxVector4 scale = evalMatrix.GetS();
-
-                KeyFrame<Vec3> kf;
-                kf.time  = t.GetSecondDouble();
-                kf.value = Vec3((float)scale[0], (float)scale[1], (float)scale[2]);
-                nodeAnim.scale.keys.push_back(kf);
-            }
-        }
-
-        clip.nodeChannels.push_back(std::move(nodeAnim));
-    }
-
-    if (!clip.nodeChannels.empty())
-        mcScene.animations.push_back(std::move(clip));
-
-    Logger::Instance().LogInfo(
+    std::string logMsg =
         "FbxSceneConverter::ConvertAnimStack: clip=\"" + clip.name + "\"" +
         " duration={" + std::to_string(clip.startTime) + "s ~ " + std::to_string(clip.endTime) + "s}" +
-        " nodeChannels=" + std::to_string(clip.nodeChannels.size()));
+        " nodeChannels=" + std::to_string(clip.nodeChannels.size()) +
+        " morphChannels=" + std::to_string(clip.morphChannels.size());
+
+    if (!clip.nodeChannels.empty() || !clip.morphChannels.empty())
+        mcScene.animations.push_back(std::move(clip));
+
+    Logger::Instance().LogInfo(logMsg);
 }
 
 // ============================================================
@@ -694,6 +818,7 @@ void FbxSceneConverter::StripUnitCompensationScale(Scene& mcScene)
         m[13] /= expectedCompScale;
         m[14] /= expectedCompScale;
 
+        m_strippedRootScales[nd->id] = expectedCompScale;
         Logger::Instance().LogInfo(
             std::string("FbxSceneConverter: stripped unit-compensation scale (") +
             std::to_string(expectedCompScale) +

@@ -13,6 +13,8 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -55,6 +57,7 @@ private:
     std::unordered_map<ObjectID, int> m_matIdxMap;
     std::unordered_map<ObjectID, int> m_meshIdxMap;
     std::unordered_map<ObjectID, int> m_nodeIdxMap;
+    std::unordered_map<ObjectID, int> m_meshToNodeIdxMap;  // meshId → gltf node index（morph 动画用）
 
     // ---- 辅助：向 buffer[0] 追加数据并 4-byte 对齐，返回 accessor 索引 ----
     int PushAccessor(const void* data, size_t bytes,
@@ -479,6 +482,27 @@ private:
                     " WEIGHTS_0 accessor=" + std::to_string(wAcc));
             }
 
+            // ---- Morph Targets（BlendShape）----
+            if (!mcMesh.morphTargets.empty())
+            {
+                for (const auto& mt : mcMesh.morphTargets)
+                {
+                    int posAcc = PushAccessor(
+                        mt.positionDeltas.data(),
+                        mt.positionDeltas.size() * sizeof(Vec3),
+                        TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3,
+                        (int)mt.positionDeltas.size(), 0);
+                    std::map<std::string, int> target;
+                    target["POSITION"] = posAcc;
+                    for (auto& prim : gMesh.primitives)
+                        prim.targets.push_back(target);
+                }
+                gMesh.weights.assign(mcMesh.morphTargets.size(), 0.0);
+                Logger::Instance().LogInfo(
+                    "  morphTargets=" + std::to_string(mcMesh.morphTargets.size()) +
+                    " for mesh=\"" + mcMesh.name + "\"");
+            }
+
             m_meshIdxMap[mcMesh.id] = (int)m_model.meshes.size();
             m_model.meshes.push_back(std::move(gMesh));
         }
@@ -535,7 +559,10 @@ private:
                 for (int i = 0; i < 16; ++i) gNode.matrix[i] = m[i];
             }
 
-            m_nodeIdxMap[mcNode.id] = (int)m_model.nodes.size();
+            int gNodeIdx = (int)m_model.nodes.size();
+            m_nodeIdxMap[mcNode.id] = gNodeIdx;
+            for (ObjectID meshId : mcNode.meshIds)
+                m_meshToNodeIdxMap[meshId] = gNodeIdx;
             m_model.nodes.push_back(std::move(gNode));
         }
 
@@ -622,59 +649,133 @@ private:
         m_model.defaultScene = 0;
     }
 
-    // ---- Animations（Phase14）----
+    // ---- 将 nodeChannels 写入 gAnim（T/R/S 通道）----
+    void AddNodeTrsChannels(const AnimationClip& clip, tinygltf::Animation& gAnim,
+                            int& tCount, int& rCount, int& sCount)
+    {
+        for (const auto& nodeAnim : clip.nodeChannels)
+        {
+            auto nodeIt = m_nodeIdxMap.find(nodeAnim.nodeId);
+            if (nodeIt == m_nodeIdxMap.end()) continue;
+            int targetNodeIdx = nodeIt->second;
+
+            if (!nodeAnim.translation.keys.empty())
+                { AddChannel(gAnim, nodeAnim.translation, targetNodeIdx, "translation"); ++tCount; }
+            if (!nodeAnim.rotation.keys.empty())
+                { AddChannel(gAnim, nodeAnim.rotation, targetNodeIdx, "rotation"); ++rCount; }
+            if (!nodeAnim.scale.keys.empty())
+                { AddChannel(gAnim, nodeAnim.scale, targetNodeIdx, "scale"); ++sCount; }
+        }
+    }
+
+    // ---- 将 morphChannels 写入 gAnim（weights 通道，按 meshId 合并）----
+    void AddMorphWeightChannels(const AnimationClip& clip, tinygltf::Animation& gAnim,
+                                int& morphChCount)
+    {
+        if (clip.morphChannels.empty()) return;
+
+        // 按 meshId 分组
+        std::unordered_map<ObjectID, std::vector<const MorphAnimation*>> meshMorphMap;
+        for (const auto& ma : clip.morphChannels)
+            meshMorphMap[ma.meshId].push_back(&ma);
+
+        for (const auto& [meshId, morphAnims] : meshMorphMap)
+        {
+            auto nodeIt = m_meshToNodeIdxMap.find(meshId);
+            if (nodeIt == m_meshToNodeIdxMap.end()) continue;
+            int targetNodeIdx = nodeIt->second;
+
+            auto meshIt = m_meshIdxMap.find(meshId);
+            if (meshIt == m_meshIdxMap.end()) continue;
+            int morphCount = (int)m_model.meshes[meshIt->second].weights.size();
+            if (morphCount == 0) continue;
+
+            // 各通道 key 时间的并集
+            std::set<float> allTimesSet;
+            for (const auto* ma : morphAnims)
+                for (const auto& kf : ma->weights.keys)
+                    allTimesSet.insert((float)kf.time);
+
+            std::vector<float> times(allTimesSet.begin(), allTimesSet.end());
+            if (times.empty()) continue;
+
+            AnimationInterpolation interp = morphAnims[0]->weights.interpolation;
+
+            // 每个时刻展开为 [w0, w1, ..., wN]，STEP 评估
+            std::vector<float> values;
+            values.reserve(times.size() * morphCount);
+            for (float t : times)
+            {
+                for (int mi = 0; mi < morphCount; ++mi)
+                {
+                    float w = 0.0f;
+                    for (const auto* ma : morphAnims)
+                    {
+                        if ((int)ma->morphIndex != mi) continue;
+                        for (const auto& kf : ma->weights.keys)
+                        {
+                            if ((float)kf.time <= t) w = kf.value;
+                            else break;
+                        }
+                        break;
+                    }
+                    values.push_back(w);
+                }
+            }
+
+            int inputAcc = PushAccessor(
+                times.data(), times.size() * sizeof(float),
+                TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_SCALAR,
+                (int)times.size(), 0,
+                {static_cast<double>(times.front())},
+                {static_cast<double>(times.back())});
+
+            int outputAcc = PushAccessor(
+                values.data(), values.size() * sizeof(float),
+                TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_SCALAR,
+                (int)(times.size() * morphCount), 0);
+
+            tinygltf::AnimationSampler sampler;
+            sampler.input         = inputAcc;
+            sampler.output        = outputAcc;
+            sampler.interpolation = InterpToString(interp);
+            int samplerIdx = (int)gAnim.samplers.size();
+            gAnim.samplers.push_back(std::move(sampler));
+
+            tinygltf::AnimationChannel channel;
+            channel.sampler     = samplerIdx;
+            channel.target_node = targetNodeIdx;
+            channel.target_path = "weights";
+            gAnim.channels.push_back(std::move(channel));
+            ++morphChCount;
+        }
+    }
+
+    // ---- Animations —— 编排层（Phase14）----
     void AddAnimations(const Scene& scene)
     {
         for (const auto& clip : scene.animations)
         {
-            if (clip.nodeChannels.empty() && clip.morphChannels.empty())
-                continue;
+            if (clip.nodeChannels.empty() && clip.morphChannels.empty()) continue;
 
             tinygltf::Animation gAnim;
             gAnim.name = clip.name;
 
             int tCount = 0, rCount = 0, sCount = 0;
+            AddNodeTrsChannels(clip, gAnim, tCount, rCount, sCount);
 
-            // 遍历所有 NodeAnimation 通道
-            for (const auto& nodeAnim : clip.nodeChannels)
-            {
-                auto nodeIt = m_nodeIdxMap.find(nodeAnim.nodeId);
-                if (nodeIt == m_nodeIdxMap.end()) continue;
-                int targetNodeIdx = nodeIt->second;
-
-                // Translation
-                if (!nodeAnim.translation.keys.empty())
-                {
-                    AddChannel(gAnim, nodeAnim.translation, targetNodeIdx, "translation");
-                    ++tCount;
-                }
-
-                // Rotation
-                if (!nodeAnim.rotation.keys.empty())
-                {
-                    AddChannel(gAnim, nodeAnim.rotation, targetNodeIdx, "rotation");
-                    ++rCount;
-                }
-
-                // Scale
-                if (!nodeAnim.scale.keys.empty())
-                {
-                    AddChannel(gAnim, nodeAnim.scale, targetNodeIdx, "scale");
-                    ++sCount;
-                }
-            }
+            int morphChCount = 0;
+            AddMorphWeightChannels(clip, gAnim, morphChCount);
 
             if (!gAnim.channels.empty())
             {
-                // 统计各插值类型的通道数量
                 int linCount = 0, stepCount = 0, cubicCount = 0;
                 for (const auto& s : gAnim.samplers)
                 {
                     if (s.interpolation == "LINEAR") ++linCount;
                     else if (s.interpolation == "STEP") ++stepCount;
-                    else if (s.interpolation == "CUBICSPLINE") ++cubicCount;
+                    else ++cubicCount;
                 }
-
                 Logger::Instance().LogInfo(
                     "GltfBuilder::AddAnimations: clip=\"" + gAnim.name + "\"" +
                     " channels=" + std::to_string(gAnim.channels.size()) +
@@ -682,20 +783,18 @@ private:
                     " interpolate=(L=" + std::to_string(linCount) +
                     " S=" + std::to_string(stepCount) +
                     " C=" + std::to_string(cubicCount) + ")" +
-                    " (T=" + std::to_string(tCount) + " R=" + std::to_string(rCount) + " S=" + std::to_string(sCount) + ")");
+                    " (T=" + std::to_string(tCount) + " R=" + std::to_string(rCount) +
+                    " S=" + std::to_string(sCount) + " morph=" + std::to_string(morphChCount) + ")");
                 m_model.animations.push_back(std::move(gAnim));
             }
         }
 
-        // 修复：动画 channel 节点不能同时有 matrix 属性，改为 TRS
         FixAnimatedNodeMatrices();
 
         if (!scene.animations.empty())
-        {
             Logger::Instance().LogInfo(
                 "GltfExporter: exported " + std::to_string(m_model.animations.size()) +
                 " animation clip(s).");
-        }
     }
 
 private:
