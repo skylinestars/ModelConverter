@@ -145,6 +145,52 @@ ObjectID FbxSceneConverter::GetOrCreateTexture(FbxFileTexture* fbxTex, Scene& mc
 // ============================================================
 // GetOrCreateMaterial
 // ============================================================
+// 从 FBX 材质中读取漫反射颜色。
+// FBX SDK 的类型化访问器（FbxSurfaceLambert::Diffuse）对应内部属性名 "DiffuseColor"，
+// 但部分导出器（如 CC4、某些版本 Blender）将颜色写入名为 "Diffuse" 的自定义属性，
+// 两者属性名不同，SDK 访问器读不到自定义属性只会返回 SDK 默认值（约 0.8）。
+// 解决方案：若类型化访问器结果接近白色/默认值，
+// 再按优先级依次尝试 "Diffuse"、"DiffuseColor" 等常见属性名。
+static FbxDouble3 ReadDiffuseColor(FbxSurfaceMaterial* mat,
+                                    FbxDouble3 typedResult)
+{
+    // 若类型化结果不是"接近白色/默认"，直接采用（避免覆盖真实白色材质）
+    // 判断标准：R、G、B 三通道均 > 0.95 → 视为可能是默认值，再做兜底查找
+    const bool looksDefault = (typedResult[0] > 0.95 &&
+                                typedResult[1] > 0.95 &&
+                                typedResult[2] > 0.95);
+    if (!looksDefault)
+        return typedResult;
+
+    // 兜底：按优先级尝试常见属性名（"Diffuse" 优先于其他）
+    static const char* kNames[] = {
+        "Diffuse",          // 部分工具写此名而非 "DiffuseColor"
+        "DiffuseColor",     // FBX SDK 标准名，但可能已被 typedResult 读过
+        "base_color", "BaseColor", "baseColor",
+        "color",      "Color",
+        "albedo",     "Albedo",
+        nullptr
+    };
+    for (int i = 0; kNames[i]; ++i)
+    {
+        FbxProperty prop = mat->FindProperty(kNames[i]);
+        if (!prop.IsValid()) continue;
+        EFbxType dt = prop.GetPropertyDataType().GetType();
+        if (dt == eFbxDouble3)
+        {
+            FbxDouble3 c = prop.Get<FbxDouble3>();
+            // 找到了非白色颜色则采用，找到白色也直接返回（可能真就是白色）
+            return c;
+        }
+        if (dt == eFbxDouble4)
+        {
+            FbxDouble4 c = prop.Get<FbxDouble4>();
+            return FbxDouble3(c[0], c[1], c[2]);
+        }
+    }
+    return typedResult;  // 所有尝试都没找到，返回原始类型化结果
+}
+
 ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scene& mcScene)
 {
     if (!fbxMat) return INVALID_ID;
@@ -160,7 +206,8 @@ ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scen
         auto* phong = static_cast<FbxSurfacePhong*>(fbxMat);
         mcMat.workflow = Material::Phong;
 
-        FbxDouble3 diff = phong->Diffuse.Get();
+        // phong->Diffuse 读的是内部属性 "DiffuseColor"；若接近白色，再尝试 "Diffuse" 等属性
+        FbxDouble3 diff = ReadDiffuseColor(fbxMat, phong->Diffuse.Get());
         mcMat.diffuse = Vec3((float)diff[0], (float)diff[1], (float)diff[2]);
 
         // FBX TransparencyFactor 语义：0.0=不透明，1.0=全透明
@@ -189,9 +236,7 @@ ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scen
         {
             auto* fbxTex = prop.GetSrcObject<FbxFileTexture>(0);
             if (fbxTex)
-            {
                 mcMat.baseColorTexture.textureId = GetOrCreateTexture(fbxTex, mcScene);
-            }
         }
     }
     else if (fbxMat->Is<FbxSurfaceLambert>())
@@ -199,19 +244,33 @@ ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scen
         auto* lambert = static_cast<FbxSurfaceLambert*>(fbxMat);
         mcMat.workflow = Material::Phong;
 
-        FbxDouble3 diff = lambert->Diffuse.Get();
+        FbxDouble3 diff = ReadDiffuseColor(fbxMat, lambert->Diffuse.Get());
         mcMat.diffuse = Vec3((float)diff[0], (float)diff[1], (float)diff[2]);
+
         mcMat.opacity = 1.0f - (float)lambert->TransparencyFactor.Get();
+        if (mcMat.opacity <= 0.05f) mcMat.opacity = 1.0f;
+
         mcMat.baseColor = Vec4(mcMat.diffuse.x, mcMat.diffuse.y, mcMat.diffuse.z, mcMat.opacity);
         mcMat.metallic  = 0.0f;
         mcMat.roughness = 0.8f;
     }
     else
     {
-        mcMat.workflow   = Material::MetallicRoughness;
-        mcMat.baseColor  = Vec4(1, 1, 1, 1);
-        mcMat.metallic   = 0.0f;
-        mcMat.roughness  = 0.5f;
+        // 非标准材质（不继承自 FbxSurfaceLambert），如 3ds Max Physical Material、
+        // Maya Standard Surface、CC4 自定义着色器等。
+        // 记录材质类名辅助诊断，并尝试从常见属性名中读取颜色。
+        Logger::Instance().LogInfo(
+            std::string("FbxSceneConverter: material \"") + fbxMat->GetName() +
+            "\" is non-Lambert (class=" + fbxMat->GetClassId().GetName() +
+            "), reading color from custom properties");
+
+        mcMat.workflow  = Material::MetallicRoughness;
+        mcMat.metallic  = 0.0f;
+        mcMat.roughness = 0.5f;
+
+        // 尝试常见属性名读取颜色（ReadDiffuseColor 中以 (1,1,1) 触发兜底搜索）
+        FbxDouble3 c = ReadDiffuseColor(fbxMat, FbxDouble3(1, 1, 1));
+        mcMat.baseColor = Vec4((float)c[0], (float)c[1], (float)c[2], 1.0f);
     }
 
     m_matCache[fbxMat] = mcMat.id;
@@ -262,42 +321,54 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
     // 存储映射供 ConvertSkeleton 使用
     m_ctrlToOutputMaps[mcMesh.id] = std::move(ctrlToOutputMap);
 
-    // ---- Section 构建（按 material 分组）----
-    std::map<int, MeshSection> sectionMap;
-    std::map<int, uint32_t>   sectionStart;
+    // ---- Section 构建（按材质排序后重建 index buffer）----
+    // FBX 中不同材质的面往往交错排列（如面序 mat0, mat1, mat0...）。
+    // GLTF primitive 要求每个 section 的 indices 必须是连续范围，
+    // 所以必须先收集每个材质对应的三角形索引，重建连续的 index buffer，
+    // 再设定 section 的 indexOffset / indexCount，否则末尾的三角形会丢失。
 
     FbxGeometryElementMaterial* matElem = fbxMesh->GetElementMaterial(0);
     int polyCount2 = fbxMesh->GetPolygonCount();
 
-    // 计算 indexOffset（三角形级别的索引偏移）
-    uint32_t indexCursor = 0;
-    for (int p = 0; p < polyCount2; ++p)
+    // 第一步：逐多边形将三角形索引按材质分桶（保持原始顺序，无需排序）
+    std::map<int, std::vector<uint32_t>> perMatIndices;
     {
-        int polySize = fbxMesh->GetPolygonSize(p);
-        if (polySize < 3) continue;
+        int triIdx = 0;  // 全局三角形计数（与 FanTriangulateMesh 的输出顺序严格对应）
+        for (int p = 0; p < polyCount2; ++p)
+        {
+            int polySize = fbxMesh->GetPolygonSize(p);
+            if (polySize < 3) continue;  // 与 FanTriangulateMesh 保持相同跳过条件
 
-        int matIdx = 0;
-        if (matElem && matElem->GetMappingMode() == FbxGeometryElement::eByPolygon)
-            matIdx = matElem->GetIndexArray().GetAt(p);
+            int matIdx = 0;
+            if (matElem && matElem->GetMappingMode() == FbxGeometryElement::eByPolygon)
+                matIdx = matElem->GetIndexArray().GetAt(p);
 
-        int triCount = polySize - 2;     // N 边形产生 N-2 个三角形
-        uint32_t idxPerTri = 3;
-
-        if (sectionMap.find(matIdx) == sectionMap.end())
-            sectionStart[matIdx] = indexCursor;
-
-        sectionMap[matIdx].indexOffset = sectionStart[matIdx];
-        sectionMap[matIdx].indexCount  += triCount * idxPerTri;
-        indexCursor += triCount * idxPerTri;
+            int triCount = polySize - 2;
+            for (int t = 0; t < triCount; ++t)
+            {
+                uint32_t base = static_cast<uint32_t>(triIdx * 3);
+                perMatIndices[matIdx].push_back(mcMesh.indices[base + 0]);
+                perMatIndices[matIdx].push_back(mcMesh.indices[base + 1]);
+                perMatIndices[matIdx].push_back(mcMesh.indices[base + 2]);
+                ++triIdx;
+            }
+        }
     }
 
-    for (auto& [matIdx, sec] : sectionMap)
+    // 第二步：重建连续 index buffer 并生成 sections
+    mcMesh.indices.clear();
+    for (auto& [matIdx, idxList] : perMatIndices)
     {
+        MeshSection sec;
+        sec.indexOffset = static_cast<uint32_t>(mcMesh.indices.size());
+        sec.indexCount  = static_cast<uint32_t>(idxList.size());
         if (matIdx < fbxNode->GetMaterialCount())
             sec.materialId = GetOrCreateMaterial(fbxNode->GetMaterial(matIdx), mcScene);
+        mcMesh.indices.insert(mcMesh.indices.end(), idxList.begin(), idxList.end());
         mcMesh.sections.push_back(sec);
     }
 
+    // fallback：无材质分配信息时生成单 section
     if (mcMesh.sections.empty() && !mcMesh.indices.empty())
     {
         MeshSection sec;
@@ -568,10 +639,13 @@ void FbxSceneConverter::ConvertAnimations(FbxScene* fbxScene, Scene& mcScene)
 //   - 但顶点坐标实际是 Blender 米制（1 unit = 1 m），未乘以 100
 //   - 为让 cm 查看器正确显示，在根节点上写入 scale=100（1/unitScale）作补偿
 //
-// 识别条件：根节点各轴 scale 均约等于 1/unitScale（如 100），且 unitScale < 1（非米制文件）
-// 处理：
-//   1. 从根节点 localMatrix 中除去该 scale（恢复为 1）
-//   2. 将 meta.unitScale 设为 1.0——顶点坐标已是米制，UnitConvertPass 无需再缩放
+// 识别条件：至少一个根节点各轴 scale 均约等于 1/unitScale（如 100），且 unitScale < 1（非米制文件）
+// 处理（两阶段）：
+//   Phase1: 检测是否存在补偿根节点（scale ≈ expectedCompScale）
+//   Phase2: 若检测到，对【所有】根节点的旋转-缩放列除以 expectedCompScale
+//     - 纯补偿节点（scale=100）→ scale 恢复为 1
+//     - 混合节点（scale = userScale×100，如 2.289）→ scale 恢复为 userScale（如 0.02289）
+//   并将 meta.unitScale 设为 1.0——顶点坐标已是米制，UnitConvertPass 无需再缩放
 void FbxSceneConverter::StripUnitCompensationScale(Scene& mcScene)
 {
     const float unitScale = mcScene.metadata.unitScale;
@@ -581,14 +655,14 @@ void FbxSceneConverter::StripUnitCompensationScale(Scene& mcScene)
     const float expectedCompScale = 1.0f / unitScale;  // 如 cm → 100
     const float tolerance         = expectedCompScale * 0.05f;
 
-    bool anyStripped = false;
+    // Phase 1: 检测是否存在单位补偿根节点
+    bool hasCompensation = false;
     for (ObjectID rootId : mcScene.rootNodes)
     {
         Node* nd = mcScene.FindNode(rootId);
         if (!nd) continue;
 
-        float* m = nd->localMatrix.m;
-        // 提取各轴缩放量（列向量的模长）
+        const float* m = nd->localMatrix.m;
         float sx = std::sqrt(m[0]*m[0] + m[1]*m[1] + m[2]*m[2]);
         float sy = std::sqrt(m[4]*m[4] + m[5]*m[5] + m[6]*m[6]);
         float sz = std::sqrt(m[8]*m[8] + m[9]*m[9] + m[10]*m[10]);
@@ -597,28 +671,41 @@ void FbxSceneConverter::StripUnitCompensationScale(Scene& mcScene)
             std::abs(sy - expectedCompScale) < tolerance &&
             std::abs(sz - expectedCompScale) < tolerance)
         {
-            // 将旋转-缩放列除以 expectedCompScale，保留旋转方向，移除缩放因子
-            for (int col = 0; col < 3; ++col)
-                for (int row = 0; row < 3; ++row)
-                    m[col * 4 + row] /= expectedCompScale;
-
-            Logger::Instance().LogInfo(
-                std::string("FbxSceneConverter: stripped unit-compensation scale (") +
-                std::to_string(expectedCompScale) +
-                ") from root node \"" + nd->name + "\"");
-            anyStripped = true;
+            hasCompensation = true;
+            break;
         }
     }
 
-    if (anyStripped)
+    if (!hasCompensation) return;
+
+    // Phase 2: 对所有根节点的旋转-缩放列及平移列除以 expectedCompScale
+    // 旋转-缩放列（col 0-2）：消除比例补偿，scale 从 userScale×100 恢复为 userScale
+    // 平移列（col 3，m[12..14]）：FBX 中平移量与缩放量同单位，须一并换算为米
+    for (ObjectID rootId : mcScene.rootNodes)
     {
-        // 顶点坐标与节点平移量已是米制，告知 UnitConvertPass 无需再缩放
-        mcScene.metadata.unitScale = 1.0f;
-        mcScene.metadata.unit      = "m";
+        Node* nd = mcScene.FindNode(rootId);
+        if (!nd) continue;
+
+        float* m = nd->localMatrix.m;
+        for (int col = 0; col < 3; ++col)
+            for (int row = 0; row < 3; ++row)
+                m[col * 4 + row] /= expectedCompScale;
+        m[12] /= expectedCompScale;
+        m[13] /= expectedCompScale;
+        m[14] /= expectedCompScale;
+
         Logger::Instance().LogInfo(
-            "FbxSceneConverter: unit-compensation scale stripped; "
-            "meta.unitScale reset to 1.0 (positions already in meters)");
+            std::string("FbxSceneConverter: stripped unit-compensation scale (") +
+            std::to_string(expectedCompScale) +
+            ") from root node \"" + nd->name + "\"");
     }
+
+    // 顶点坐标与节点平移量已是米制，告知 UnitConvertPass 无需再缩放
+    mcScene.metadata.unitScale = 1.0f;
+    mcScene.metadata.unit      = "m";
+    Logger::Instance().LogInfo(
+        "FbxSceneConverter: unit-compensation scale stripped; "
+        "meta.unitScale reset to 1.0 (positions already in meters)");
 }
 
 // ============================================================
