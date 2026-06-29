@@ -527,6 +527,10 @@ void FbxSceneConverter::ConvertNode(FbxNode* fbxNode, Scene& mcScene, mc::Object
 
 // ============================================================
 // ConvertNodeTrsChannels —— 提取 TRS 节点动画到 clip.nodeChannels
+//
+// 策略：按场景帧率均匀采样（bake），输出 LINEAR 插值。
+// FBX cubic bezier → GLTF CUBICSPLINE 切线转换数学复杂且易出错；
+// 均匀采样是 Blender、FBX2glTF 等主流工具的标准做法。
 // ============================================================
 void FbxSceneConverter::ConvertNodeTrsChannels(FbxAnimStack* animStack,
                                                 FbxScene* fbxScene,
@@ -537,15 +541,30 @@ void FbxSceneConverter::ConvertNodeTrsChannels(FbxAnimStack* animStack,
 
     FbxAnimEvaluator* evaluator = fbxScene->GetAnimationEvaluator();
 
-    auto getInterp = [](FbxAnimCurve* c) -> AnimationInterpolation {
-        if (!c || c->KeyGetCount() == 0)
-            return AnimationInterpolation::Linear;
-        switch (c->KeyGetInterpolation(0)) {
-            case FbxAnimCurveDef::eInterpolationConstant: return AnimationInterpolation::Step;
-            case FbxAnimCurveDef::eInterpolationCubic:   return AnimationInterpolation::CubicSpline;
-            default:                                       return AnimationInterpolation::Linear;
-        }
-    };
+    // 获取场景帧率，用于均匀采样
+    FbxTime::EMode timeMode = fbxScene->GetGlobalSettings().GetTimeMode();
+    double fps = FbxTime::GetFrameRate(timeMode);
+    if (fps <= 0.0) fps = 30.0;
+
+    FbxTimeSpan timeSpan = animStack->GetLocalTimeSpan();
+    double startSec = timeSpan.GetStart().GetSecondDouble();
+    double endSec   = timeSpan.GetStop().GetSecondDouble();
+
+    // 生成均匀采样时间列表（包含精确的末帧）
+    double dt = 1.0 / fps;
+    std::vector<FbxTime> sampleTimes;
+    sampleTimes.reserve(static_cast<size_t>((endSec - startSec) / dt) + 2);
+    for (double t = startSec; t < endSec - dt * 0.001; t += dt)
+    {
+        FbxTime ft;
+        ft.SetSecondDouble(t);
+        sampleTimes.push_back(ft);
+    }
+    {
+        FbxTime ft;
+        ft.SetSecondDouble(endSec);
+        sampleTimes.push_back(ft);
+    }
 
     for (auto& [fbxNode, mcNodeId] : m_nodeMap)
     {
@@ -564,25 +583,14 @@ void FbxSceneConverter::ConvertNodeTrsChannels(FbxAnimStack* animStack,
         bool hasScale     = (curveSx || curveSy || curveSz);
         if (!hasTranslate && !hasRotate && !hasScale) continue;
 
-        // 收集所有曲线上的唯一时间点
-        std::set<FbxTime> uniqueTimes;
-        auto collectTimes = [&](FbxAnimCurve* curve) {
-            if (!curve) return;
-            for (int k = 0; k < curve->KeyGetCount(); ++k)
-                uniqueTimes.insert(curve->KeyGetTime(k));
-        };
-        collectTimes(curveTx); collectTimes(curveTy); collectTimes(curveTz);
-        collectTimes(curveRx); collectTimes(curveRy); collectTimes(curveRz);
-        collectTimes(curveSx); collectTimes(curveSy); collectTimes(curveSz);
-        if (uniqueTimes.empty()) continue;
-
         NodeAnimation nodeAnim;
         nodeAnim.nodeId = mcNodeId;
 
         if (hasTranslate)
         {
-            nodeAnim.translation.interpolation = getInterp(curveTx ? curveTx : (curveTy ? curveTy : curveTz));
-            for (const FbxTime& t : uniqueTimes)
+            nodeAnim.translation.interpolation = AnimationInterpolation::Linear;
+            nodeAnim.translation.keys.reserve(sampleTimes.size());
+            for (const FbxTime& t : sampleTimes)
             {
                 FbxVector4 trans = evaluator->GetNodeLocalTransform(fbxNode, t).GetT();
                 KeyFrame<Vec3> kf;
@@ -593,8 +601,9 @@ void FbxSceneConverter::ConvertNodeTrsChannels(FbxAnimStack* animStack,
         }
         if (hasRotate)
         {
-            nodeAnim.rotation.interpolation = getInterp(curveRx ? curveRx : (curveRy ? curveRy : curveRz));
-            for (const FbxTime& t : uniqueTimes)
+            nodeAnim.rotation.interpolation = AnimationInterpolation::Linear;
+            nodeAnim.rotation.keys.reserve(sampleTimes.size());
+            for (const FbxTime& t : sampleTimes)
             {
                 FbxQuaternion q = evaluator->GetNodeLocalTransform(fbxNode, t).GetQ();
                 KeyFrame<Quaternion> kf;
@@ -605,8 +614,9 @@ void FbxSceneConverter::ConvertNodeTrsChannels(FbxAnimStack* animStack,
         }
         if (hasScale)
         {
-            nodeAnim.scale.interpolation = getInterp(curveSx ? curveSx : (curveSy ? curveSy : curveSz));
-            for (const FbxTime& t : uniqueTimes)
+            nodeAnim.scale.interpolation = AnimationInterpolation::Linear;
+            nodeAnim.scale.keys.reserve(sampleTimes.size());
+            for (const FbxTime& t : sampleTimes)
             {
                 FbxVector4 scale = evaluator->GetNodeLocalTransform(fbxNode, t).GetS();
                 KeyFrame<Vec3> kf;
@@ -615,6 +625,7 @@ void FbxSceneConverter::ConvertNodeTrsChannels(FbxAnimStack* animStack,
                 nodeAnim.scale.keys.push_back(kf);
             }
         }
+
         // 若该节点曾被 StripUnitCompensationScale 剥除补偿 scale，
         // 需同步将 S/T 动画 keys 也除以相同系数，否则动画会把节点拉回 S=100
         auto strippedIt = m_strippedRootScales.find(mcNodeId);
