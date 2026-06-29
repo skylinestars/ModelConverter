@@ -136,7 +136,7 @@ ObjectID FbxSceneConverter::GetOrCreateTexture(FbxFileTexture* fbxTex, Scene& mc
         baseName = fbxTex->GetName();
     }
     mcTex.name = baseName;
-    mcTex.uri  = fileName;
+    mcTex.uri = fileName;// "D:/Data/model/fbx2/textures_Survivor01/" + baseName;//fileName;
 
     m_texCache[fbxTex] = mcTex.id;
     return mcTex.id;
@@ -226,17 +226,29 @@ ObjectID FbxSceneConverter::GetOrCreateMaterial(FbxSurfaceMaterial* fbxMat, Scen
         mcMat.baseColor = Vec4(mcMat.diffuse.x, mcMat.diffuse.y, mcMat.diffuse.z, mcMat.opacity);
         mcMat.metallic   = 0.0f;
         {
-            float s = std::clamp(mcMat.shininess, 0.0f, 128.0f);
-            mcMat.roughness = std::clamp(std::sqrt(2.0f / (s + 2.0f)), 0.3f, 1.0f);
+            // 物理正确的 Phong specularExponent → PBR roughness 映射：
+            //   roughness = (2 / (s + 2))^0.25
+            // 对应逆变换 s = 2/r^4 - 2；shininess=30 → roughness=0.5（Blender 默认 Phong）
+            float s = std::max(0.0f, mcMat.shininess);
+            mcMat.roughness = std::clamp(std::pow(2.0f / (s + 2.0f), 0.25f), 0.05f, 1.0f);
+            Logger::Instance().LogInfo(
+                std::string("FbxSceneConverter: material \"") + mcMat.name +
+                "\" Phong shininess=" + std::to_string(mcMat.shininess) +
+                " → roughness=" + std::to_string(mcMat.roughness));
         }
 
         // Diffuse texture
+        // FBX 中纹理覆盖颜色；GLTF 规范中 baseColorFactor × baseColorTexture 相乘，
+        // 有纹理时须将 baseColor 重置为白色，避免非白色 factor 在 Blender 中产生 Color Factor 节点
         FbxProperty prop = fbxMat->FindProperty(FbxSurfaceMaterial::sDiffuse);
         if (prop.IsValid() && prop.GetSrcObjectCount<FbxFileTexture>() > 0)
         {
             auto* fbxTex = prop.GetSrcObject<FbxFileTexture>(0);
             if (fbxTex)
+            {
                 mcMat.baseColorTexture.textureId = GetOrCreateTexture(fbxTex, mcScene);
+                mcMat.baseColor = Vec4(1.0f, 1.0f, 1.0f, mcMat.opacity);
+            }
         }
     }
     else if (fbxMat->Is<FbxSurfaceLambert>())
@@ -291,6 +303,16 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
     if (ctrlCount == 0 || polyCount == 0)
         return INVALID_ID;
 
+    // 用 FBX SDK FbxGeometryConverter 精确三角化（正确处理凹多边形和非平面四边形）
+    // 比扇形三角化（fan triangulation）质量更好，与 Blender FBX 导入器行为一致
+    if (m_manager)
+    {
+        FbxGeometryConverter geomConv(m_manager);
+        geomConv.Triangulate(fbxNode->GetNodeAttribute(), /*pReplace=*/true);
+        fbxMesh = fbxNode->GetMesh();  // 三角化后重新获取（指针可能已更新）
+        if (!fbxMesh) return INVALID_ID;
+    }
+
     // 若 FBX 网格没有显式法线（部分导出器只写几何体，依赖查看器自行计算法线）
     // 则调用 FBX SDK 从面法线+光滑组生成，与 FBX Review 的行为保持一致。
     // 不带参数默认：pOverwrite=false（不覆盖已有法线），pByCtrlPoint=false（逐多边形顶点）
@@ -302,7 +324,7 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
             "\" has no normals, generated from geometry");
     }
 
-    // 扇形三角化 + 顶点解包（委托给 FbxMeshHelper）
+    // FBX SDK 三角化后网格仍是扇形三角化 + 顶点解包（委托给 FbxMeshHelper）
     Mesh& mcMesh = mcScene.AddMesh();
     mcMesh.name = fbxNode->GetName();
 
@@ -853,6 +875,8 @@ VoidResult FbxSceneConverter::Convert(FbxManager* manager, FbxScene* fbxScene, S
         " frontAxisParity=" + mcScene.metadata.custom["frontAxisParity"] +
         " frontAxisSign=" + mcScene.metadata.custom["frontAxisSign"]);
 
+    m_manager = manager;
+
     // 三角化在 ConvertMesh 中按需逐个处理，避免全局 Triangulate
     // 遍历整个场景时触发 NURBS/Patch 等非 Mesh 几何体导致 SDK 断言崩溃。
 
@@ -1077,6 +1101,62 @@ void FbxSceneConverter::ConvertSkeleton(FbxScene* fbxScene, Scene& mcScene)
             " maxInfPerVtx=" + std::to_string(maxInfPerVtx) +
             " totalInfluences=" + std::to_string(totalInfs) +
             " avgWeight=" + (totalInfs > 0 ? std::to_string(totalWeight / totalInfs) : "0"));
+
+        // ---- 修复叶骨节点位置（Blender FBX 导出的 _end 骨骼位置错误）----
+        // Blender 有时将 Bone.001_end 导出为场景根或 Z_UP 的子节点，而非 Bone.001 的子节点。
+        // 通过"去掉 _end 后缀 → 找对应骨骼"的名称匹配将其重新挂到正确父骨骼下。
+        {
+            // 骨骼名称 → mc::NodeID 映射
+            std::unordered_map<std::string, ObjectID> boneNameToNodeId;
+            for (auto& [fbxLink, bIdx] : boneIdxMap)
+            {
+                auto nodeIt = m_nodeMap.find(fbxLink);
+                if (nodeIt != m_nodeMap.end())
+                    boneNameToNodeId[fbxLink->GetName()] = nodeIt->second;
+            }
+
+            for (auto& nd : mcScene.nodes)
+            {
+                const std::string suffix = "_end";
+                if (nd.name.size() <= suffix.size()) continue;
+                if (nd.name.compare(nd.name.size() - suffix.size(), suffix.size(), suffix) != 0) continue;
+
+                std::string parentBoneName = nd.name.substr(0, nd.name.size() - suffix.size());
+                auto boneIt = boneNameToNodeId.find(parentBoneName);
+                if (boneIt == boneNameToNodeId.end()) continue;
+
+                ObjectID boneNodeId = boneIt->second;
+                if (nd.parent == boneNodeId) continue;  // 已在正确位置
+
+                // 从当前父节点的 children 列表中移除
+                if (nd.parent != INVALID_ID)
+                {
+                    Node* curParent = mcScene.FindNode(nd.parent);
+                    if (curParent)
+                    {
+                        auto& ch = curParent->children;
+                        ch.erase(std::remove(ch.begin(), ch.end(), nd.id), ch.end());
+                    }
+                }
+                // 若是根节点也一并移除
+                {
+                    auto& roots = mcScene.rootNodes;
+                    roots.erase(std::remove(roots.begin(), roots.end(), nd.id), roots.end());
+                }
+
+                // 挂到正确的父骨骼下
+                Node* boneNode = mcScene.FindNode(boneNodeId);
+                if (boneNode)
+                {
+                    boneNode->children.push_back(nd.id);
+                    nd.parent = boneNodeId;
+                    nd.type   = NodeType::Bone;
+                    Logger::Instance().LogInfo(
+                        "FbxSceneConverter: reparented leaf bone \"" + nd.name +
+                        "\" under \"" + parentBoneName + "\"");
+                }
+            }
+        }
     }
 
     if (!mcScene.skeletons.empty())

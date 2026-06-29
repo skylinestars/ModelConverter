@@ -22,6 +22,47 @@
 namespace mc {
 
 // ============================================================
+// 矩阵工具（AddSkins 中用于计算 extra joint IBM）
+// 列主序 float[16]，m[col*4+row]
+// ============================================================
+
+// C = A × B
+static void MatMul4x4(const float* A, const float* B, float* C)
+{
+    for (int col = 0; col < 4; ++col)
+        for (int row = 0; row < 4; ++row)
+        {
+            float s = 0.0f;
+            for (int k = 0; k < 4; ++k)
+                s += A[k * 4 + row] * B[col * 4 + k];
+            C[col * 4 + row] = s;
+        }
+}
+
+// 仿射 TRS 矩阵求逆（无 shear），out = m^(-1)
+// RS^(-1)[r][c] = RS[c][r] / (scale_r × scale_c)，平移列 = -(RS^(-1)) × T
+static void InvertAffineTRS(const float* m, float* out)
+{
+    float sx = std::sqrt(m[0]*m[0] + m[1]*m[1] + m[2]*m[2]);
+    float sy = std::sqrt(m[4]*m[4] + m[5]*m[5] + m[6]*m[6]);
+    float sz = std::sqrt(m[8]*m[8] + m[9]*m[9] + m[10]*m[10]);
+    if (sx < 1e-7f) sx = 1e-7f;
+    if (sy < 1e-7f) sy = 1e-7f;
+    if (sz < 1e-7f) sz = 1e-7f;
+    const float scales[3] = {sx, sy, sz};
+
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c)
+            out[c * 4 + r] = m[r * 4 + c] / (scales[r] * scales[c]);
+
+    for (int r = 0; r < 3; ++r)
+        out[12 + r] = -(out[r] * m[12] + out[4 + r] * m[13] + out[8 + r] * m[14]);
+
+    out[3] = out[7] = out[11] = 0.0f;
+    out[15] = 1.0f;
+}
+
+// ============================================================
 // GltfBuilder —— 将 mc::Scene 填充到 tinygltf::Model
 // ============================================================
 class GltfBuilder
@@ -169,20 +210,14 @@ private:
             if (!rawBytes.empty())
             {
                 img.mimeType = mime;
-                if (m_embedImages)
-                {
-                    int bvIdx      = PushImageBufferView(rawBytes);
-                    img.bufferView = bvIdx;
-                    img.uri.clear();
-                    img.name = imageFileName;
-                }
-                else
-                {
-                    img.image  = rawBytes;
-                    img.as_is  = true;
-                    img.bufferView = -1;
-                    img.uri = imageFileName;
-                }
+                // 始终将图片数据存入 buffer[0]：
+                //   GLB  → 写入二进制块（embedBuffers=true）
+                //   GLTF → 写入 .bin 文件（bufferView 引用）
+                // 避免 tinygltf 对外部文件扩展名（.tga/.dds 等）的限制
+                int bvIdx      = PushImageBufferView(rawBytes);
+                img.bufferView = bvIdx;
+                img.uri.clear();
+                img.name = imageFileName;
             }
             else if (!mcTex.uri.empty())
             {
@@ -352,32 +387,143 @@ private:
                 }
             }
 
-            // skeleton root node：GLTF 规范中 skeleton 就是 root joint（joints[0]）
-            // 大多数工具（包括 Blender）依赖它来识别骨架层级
-            if (!gSkin.joints.empty() && gSkin.joints[0] >= 0)
-                gSkin.skeleton = gSkin.joints[0];
+            // skin.skeleton：设为 root joint 的最近非 joint 父节点。
+            // Blender GLTF 导入器以 skin.skeleton 节点作为 Armature 容器，
+            // 若设为 root joint 自身，Blender 自动生成的叶骨 _end 节点会挂到
+            // root joint 的父节点（Empty）下，而非 Armature 内部，造成层级错乱。
+            // 将 skeleton 指向 root joint 的父节点后，Blender 能正确将整个骨架归入 Armature。
+            {
+                std::unordered_set<int> jointSet(gSkin.joints.begin(), gSkin.joints.end());
+
+                // 找 root joint：其父节点不是 joint
+                int rootJointNi = gSkin.joints.empty() ? -1 : gSkin.joints[0];
+                for (int ji : gSkin.joints)
+                {
+                    if (ji < 0 || ji >= (int)scene.nodes.size()) continue;
+                    ObjectID parentId = scene.nodes[ji].parent;
+                    bool parentIsJoint = false;
+                    if (parentId != INVALID_ID)
+                    {
+                        auto pit = m_nodeIdxMap.find(parentId);
+                        if (pit != m_nodeIdxMap.end() && jointSet.count(pit->second))
+                            parentIsJoint = true;
+                    }
+                    if (!parentIsJoint) { rootJointNi = ji; break; }
+                }
+
+                // skin.skeleton = root joint 的父节点（若不是 joint）；否则为 root joint 本身
+                if (rootJointNi >= 0 && rootJointNi < (int)scene.nodes.size())
+                {
+                    ObjectID parentId = scene.nodes[rootJointNi].parent;
+                    bool usedParent   = false;
+                    if (parentId != INVALID_ID)
+                    {
+                        auto pit = m_nodeIdxMap.find(parentId);
+                        if (pit != m_nodeIdxMap.end() && !jointSet.count(pit->second))
+                        {
+                            gSkin.skeleton = pit->second;
+                            usedParent     = true;
+                        }
+                    }
+                    if (!usedParent) gSkin.skeleton = rootJointNi;
+                }
+            }
+
+            // 将 joint 节点的直接非 joint 子节点（如 Blender 的 _end 骨骼）加入 joints。
+            // Blender GLTF 导入器对不在 joints 中的节点生成独立 Empty 对象，
+            // 放在 Armature 外部。将它们加入 joints 后 Blender 才能把它们当作
+            // 非变形骨骼保留在 Armature 内部。
+            std::vector<int> extraJoints;
+            {
+                std::unordered_set<int> jointSetX(gSkin.joints.begin(), gSkin.joints.end());
+                for (int ji : gSkin.joints)
+                {
+                    if (ji < 0 || ji >= (int)scene.nodes.size()) continue;
+                    for (ObjectID childId : scene.nodes[ji].children)
+                    {
+                        auto cit = m_nodeIdxMap.find(childId);
+                        if (cit == m_nodeIdxMap.end()) continue;
+                        int cni = cit->second;
+                        if (!jointSetX.count(cni))
+                        {
+                            extraJoints.push_back(cni);
+                            jointSetX.insert(cni);
+                        }
+                    }
+                }
+                for (int ji : extraJoints)
+                    gSkin.joints.push_back(ji);
+            }
 
             // 日志：joint 索引
+            std::string skelNodeName = (gSkin.skeleton >= 0 && gSkin.skeleton < (int)scene.nodes.size())
+                ? scene.nodes[gSkin.skeleton].name : "?";
             Logger::Instance().LogInfo(
                 "  skin[" + std::to_string(si) + "] name=\"" + gSkin.name + "\"" +
                 " skeletonId=" + std::to_string(mcSkin.skeletonId) +
                 " meshId=" + std::to_string(mcSkin.meshId) +
                 " joints=" + std::to_string(matchedCount) + "/" + std::to_string(boneCount) +
-                (unmatchedCount > 0 ? " (unmatched=" + std::to_string(unmatchedCount) + ")" : ""));
+                (unmatchedCount > 0 ? " (unmatched=" + std::to_string(unmatchedCount) + ")" : "") +
+                (!extraJoints.empty() ? " extraNonDeformJoints=" + std::to_string(extraJoints.size()) : "") +
+                " skin.skeleton=" + std::to_string(gSkin.skeleton) + "(\"" + skelNodeName + "\")");
 
-            // inverseBindMatrices
-            std::vector<float> ibm(boneCount * 16);
+            // inverseBindMatrices：变形骨骼用真实 IBM；非变形骨骼（_end 等）用父骨骼 IBM 推算。
+            // IBM_extra = R^T × local_Y^(-1) × R × IBM_parent
+            // （local_Y 是 Y-up scene 空间的 localMatrix；IBM 均保持 Z-up FBX 空间，与常规骨骼一致）
+            // ZUp→YUp 旋转矩阵 R（列主序）及其转置 R^T
+            static constexpr float kR_ZtoY[16]  = {1,0,0,0, 0,0,-1,0, 0,1,0,0, 0,0,0,1};
+            static constexpr float kRT_ZtoY[16] = {1,0,0,0, 0,0, 1,0, 0,-1,0,0, 0,0,0,1};
+
+            // 构建 nodeId → 骨骼索引映射（用于查找父骨骼 IBM）
+            std::unordered_map<ObjectID, int> nodeIdToBoneIdx;
+            for (size_t bi = 0; bi < boneCount; ++bi)
+            {
+                int ni = gSkin.joints[bi];
+                if (ni >= 0 && ni < (int)scene.nodes.size())
+                    nodeIdToBoneIdx[scene.nodes[ni].id] = (int)bi;
+            }
+
+            size_t totalJoints = boneCount + extraJoints.size();
+            std::vector<float> ibm(totalJoints * 16, 0.0f);
             for (size_t bi = 0; bi < boneCount; ++bi)
             {
                 const float* m = skel->bones[bi].inverseBindPose.m;
                 for (int i = 0; i < 16; ++i)
                     ibm[bi * 16 + i] = m[i];
             }
+            for (size_t ej = 0; ej < extraJoints.size(); ++ej)
+            {
+                float* ibmOut = ibm.data() + (boneCount + ej) * 16;
+                int extraNi = extraJoints[ej];
+                bool computed = false;
+                if (extraNi >= 0 && extraNi < (int)scene.nodes.size())
+                {
+                    ObjectID parentId = scene.nodes[extraNi].parent;
+                    auto pit = nodeIdToBoneIdx.find(parentId);
+                    if (pit != nodeIdToBoneIdx.end())
+                    {
+                        // IBM_extra = R^T × local_Y^(-1) × R × IBM_parent
+                        const float* parentIBM = skel->bones[pit->second].inverseBindPose.m;
+                        const float* localY    = scene.nodes[extraNi].localMatrix.m;
+                        float localInv[16] = {}, tmp1[16] = {}, tmp2[16] = {};
+                        InvertAffineTRS(localY, localInv);
+                        MatMul4x4(kR_ZtoY, parentIBM, tmp1);   // R × IBM_parent
+                        MatMul4x4(localInv, tmp1, tmp2);        // local_Y^(-1) × (R × IBM_parent)
+                        MatMul4x4(kRT_ZtoY, tmp2, ibmOut);     // R^T × (...)
+                        computed = true;
+                    }
+                }
+                if (!computed)
+                {
+                    // 回退：identity（父节点找不到骨骼索引时）
+                    ibmOut[0] = ibmOut[5] = ibmOut[10] = ibmOut[15] = 1.0f;
+                }
+            }
 
             gSkin.inverseBindMatrices = PushAccessor(
                 ibm.data(), ibm.size() * sizeof(float),
                 TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_MAT4,
-                (int)boneCount, 0);
+                (int)totalJoints, 0);
 
             m_model.skins.push_back(std::move(gSkin));
         }
@@ -455,9 +601,19 @@ private:
                 weights.reserve(mcMesh.positions.size() * 4);
                 for (size_t vi = 0; vi < mcMesh.positions.size(); ++vi)
                 {
-                    const auto& infs = vi < mcMesh.skinInfluences.size()
-                                       ? mcMesh.skinInfluences[vi]
-                                       : std::vector<VertexInfluence>{};
+                    // 按权重降序取前4个影响，并归一化，避免 bone-index 顺序导致高权重影响被截断
+                    auto infs = (vi < mcMesh.skinInfluences.size())
+                                ? mcMesh.skinInfluences[vi]
+                                : std::vector<VertexInfluence>{};
+                    std::sort(infs.begin(), infs.end(), [](const VertexInfluence& a, const VertexInfluence& b) {
+                        return a.weight > b.weight;
+                    });
+                    if (infs.size() > 4) infs.resize(4);
+                    float totalW = 0.0f;
+                    for (const auto& inf : infs) totalW += inf.weight;
+                    if (totalW > 1e-6f)
+                        for (auto& inf : infs) inf.weight /= totalW;
+
                     for (int c = 0; c < 4; ++c)
                     {
                         if (c < (int)infs.size()) { joints.push_back(infs[c].joint); weights.push_back(infs[c].weight); }

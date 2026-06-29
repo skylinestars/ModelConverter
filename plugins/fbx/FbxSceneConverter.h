@@ -70,6 +70,9 @@ private:
     // 记录被剥除了单位补偿 scale 的根节点 ID → 被剥除的补偿系数（如 100）
     // ConvertNodeTrsChannels 用它来同步修正 S/T 动画通道
     std::unordered_map<mc::ObjectID, float> m_strippedRootScales;
+
+    // FBX Manager 指针（ConvertMesh 中 FbxGeometryConverter 三角化需要）
+    fbxsdk::FbxManager* m_manager = nullptr;
 };
 
 } // namespace mc
