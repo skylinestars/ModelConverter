@@ -28,6 +28,7 @@ private:
     void ScaleNodeTranslations(Scene& scene) const;
     void ScaleAnimationTranslations(Scene& scene) const;
     void ScaleSkeletonIBMs(Scene& scene) const;
+    void ScaleMorphTargetDeltas(Scene& scene) const;
 };
 
 } // namespace mc

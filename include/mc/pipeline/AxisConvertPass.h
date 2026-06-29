@@ -35,6 +35,7 @@ private:
     void TransformMeshPositions(Scene& scene) const;
     void TransformMeshNormals(Scene& scene) const;
     void TransformNodeMatrices(Scene& scene) const;
+    void TransformMorphTargetDeltas(Scene& scene) const;
 };
 
 } // namespace mc

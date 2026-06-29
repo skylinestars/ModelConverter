@@ -49,6 +49,14 @@ void UnitConvertPass::ScaleAnimationTranslations(Scene& scene) const
             }
 }
 
+void UnitConvertPass::ScaleMorphTargetDeltas(Scene& scene) const
+{
+    for (auto& mesh : scene.meshes)
+        for (auto& mt : mesh.morphTargets)
+            for (auto& d : mt.positionDeltas)
+            { d.x *= m_factor; d.y *= m_factor; d.z *= m_factor; }
+}
+
 void UnitConvertPass::ScaleSkeletonIBMs(Scene& scene) const
 {
     for (auto& skel : scene.skeletons)
@@ -75,6 +83,7 @@ VoidResult UnitConvertPass::Execute(Scene& scene)
     ScaleNodeTranslations(scene);
     ScaleAnimationTranslations(scene);
     ScaleSkeletonIBMs(scene);
+    ScaleMorphTargetDeltas(scene);
 
     scene.metadata.unitScale *= m_factor;
     scene.metadata.unit = UnitNameFromScaleToMeter(scene.metadata.unitScale);

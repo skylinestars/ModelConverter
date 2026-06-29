@@ -122,6 +122,14 @@ void AxisConvertPass::TransformNodeMatrices(Scene& scene) const
     }
 }
 
+void AxisConvertPass::TransformMorphTargetDeltas(Scene& scene) const
+{
+    for (auto& mesh : scene.meshes)
+        for (auto& mt : mesh.morphTargets)
+            for (auto& d : mt.positionDeltas)
+                d = RemapVec3(d);
+}
+
 VoidResult AxisConvertPass::Execute(Scene& scene)
 {
     if (m_from == m_to) return {true, ""};
@@ -129,6 +137,7 @@ VoidResult AxisConvertPass::Execute(Scene& scene)
     TransformMeshPositions(scene);
     TransformMeshNormals(scene);
     TransformNodeMatrices(scene);
+    TransformMorphTargetDeltas(scene);
 
     scene.metadata.upAxis = ToAxis(m_to);
 

@@ -402,6 +402,10 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
     }
 
     // ---- BlendShape（Morph Target）----
+    // FBX SDK 的 shape->GetControlPoints() 返回与 base mesh 等大的全量数组：
+    //   dispPts[ctrlIdx] = 目标形状下该控制点的绝对坐标（= basePts[ctrlIdx] + delta）
+    // 稀疏索引 GetControlPointIndices() 仅标记哪些控制点有位移，
+    // 不可将其当作 dispPts 的下标（否则会取到无关控制点的基础位置）。
     const auto& ctoMap = m_ctrlToOutputMaps[mcMesh.id];
     const FbxVector4* basePts = fbxMesh->GetControlPoints();
     FbxAMatrix geoTrs = GetGeometricTransform(fbxNode);
@@ -420,7 +424,7 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
 
             int targetCount = channel->GetTargetShapeCount();
             if (targetCount == 0) continue;
-            // 取全权重目标形状
+            // 取全权重目标形状（多步 in-between 形状取最后一个）
             FbxShape* shape = channel->GetTargetShape(targetCount - 1);
             if (!shape) continue;
 
@@ -428,18 +432,18 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
             mt.name = channel->GetName();
             mt.positionDeltas.resize(mcMesh.positions.size(), Vec3(0.0f, 0.0f, 0.0f));
 
+            const FbxVector4* dispPts = shape->GetControlPoints();
             int sparseCount = shape->GetControlPointIndicesCount();
             if (sparseCount > 0)
             {
-                // 稀疏模式：只有部分控制点有位移
+                // 稀疏模式：用稀疏索引定位控制点，但必须用 dispPts[ctrlIdx] 取值
                 const int* spIndices = shape->GetControlPointIndices();
-                const FbxVector4* dispPts = shape->GetControlPoints();
                 for (int si = 0; si < sparseCount; ++si)
                 {
                     int ctrlIdx = spIndices[si];
                     if (ctrlIdx < 0 || ctrlIdx >= (int)ctoMap.size()) continue;
                     FbxVector4 base = geoTrs.MultT(basePts[ctrlIdx]);
-                    FbxVector4 disp = geoTrs.MultT(dispPts[si]);
+                    FbxVector4 disp = geoTrs.MultT(dispPts[ctrlIdx]);
                     Vec3 d((float)(disp[0]-base[0]), (float)(disp[1]-base[1]), (float)(disp[2]-base[2]));
                     for (uint32_t outIdx : ctoMap[ctrlIdx])
                         if (outIdx < (uint32_t)mt.positionDeltas.size())
@@ -449,7 +453,6 @@ ObjectID FbxSceneConverter::ConvertMesh(FbxNode* fbxNode, Scene& mcScene)
             else
             {
                 // 全量模式：所有控制点都列出
-                const FbxVector4* dispPts = shape->GetControlPoints();
                 int shapeCtrlCount = shape->GetControlPointsCount();
                 for (int pi = 0; pi < shapeCtrlCount && pi < (int)ctoMap.size(); ++pi)
                 {
