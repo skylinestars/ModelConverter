@@ -13,7 +13,6 @@
 #include <unordered_map>
 #include <string>
 #include <sstream>
-#include <filesystem>
 #include <cmath>
 #include <algorithm>
 
@@ -128,15 +127,17 @@ ObjectID FbxSceneConverter::GetOrCreateTexture(FbxFileTexture* fbxTex, Scene& mc
 
     Texture& mcTex = mcScene.AddTexture();
 
-    // 使用贴图文件名（不含路径，但保留扩展名）作为纹理名称
-    std::string fileName = fbxTex->GetFileName();
-    std::filesystem::path texPath(fileName);
-    std::string baseName = texPath.filename().string();
-    if (baseName.empty()) {
+    // 用字符串操作提取文件名（最后一个 '/' 或 '\' 之后的部分）。
+    // 避免 std::filesystem::path 在 Windows 上将 std::string 按当前 locale 解码，
+    // 导致含非 ASCII 字符（如中文路径）的 UTF-8 字节序列触发异常崩溃。
+    const char* rawFileName = fbxTex->GetFileName();
+    std::string fileName = rawFileName ? rawFileName : "";
+    size_t sep = fileName.find_last_of("/\\");
+    std::string baseName = (sep != std::string::npos) ? fileName.substr(sep + 1) : fileName;
+    if (baseName.empty())
         baseName = fbxTex->GetName();
-    }
     mcTex.name = baseName;
-    mcTex.uri = fileName;// "D:/Data/model/fbx2/textures_Survivor01/" + baseName;//fileName;
+    mcTex.uri = fileName;
 
     m_texCache[fbxTex] = mcTex.id;
     return mcTex.id;

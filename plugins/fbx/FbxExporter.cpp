@@ -86,7 +86,7 @@ private:
 
         if (!tex.uri.empty())
         {
-            std::filesystem::path srcPath = tex.uri;
+            std::filesystem::path srcPath = Utf8PathFromString(tex.uri);
             std::filesystem::path outPath = m_outputDir / srcPath.filename();
             if (outPath.filename().empty())
                 outPath = m_outputDir / Utf8PathFromString(stem + srcPath.extension().u8string());

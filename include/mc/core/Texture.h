@@ -3,7 +3,6 @@
 #include "mc/common/Types.h"
 #include <string>
 #include <vector>
-#include <filesystem>
 
 namespace mc {
 
@@ -49,7 +48,7 @@ struct Texture
     std::string                name;
 
     // 二选一：uri（外置） 或 embeddedData（内嵌）
-    std::filesystem::path      uri;  // 相对路径或绝对路径
+    std::string                uri;  // 相对路径或绝对路径（UTF-8）
     bool                       embedded = false;
     std::vector<uint8_t>       embeddedData;  // PNG/JPG/WebP 原始字节
     std::string                mimeType;  // "image/png", "image/jpeg" ...

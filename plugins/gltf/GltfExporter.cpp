@@ -129,9 +129,18 @@ private:
     }
 
     // ---- Textures ----
-    static std::string MimeTypeFromPath(const std::filesystem::path& p)
+    // 从 UTF-8 路径字符串中提取文件名（最后一个 '/' 或 '\' 之后的部分）
+    static std::string FileNameFromPath(const std::string& path)
     {
-        std::string ext = p.extension().string();
+        size_t sep = path.find_last_of("/\\");
+        return (sep != std::string::npos) ? path.substr(sep + 1) : path;
+    }
+
+    static std::string MimeTypeFromPath(const std::string& path)
+    {
+        std::string name = FileNameFromPath(path);
+        size_t dot = name.rfind('.');
+        std::string ext = (dot != std::string::npos) ? name.substr(dot) : "";
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         if (ext == ".jpg" || ext == ".jpeg") return "image/jpeg";
         if (ext == ".webp")                  return "image/webp";
@@ -174,14 +183,14 @@ private:
                 rawBytes = mcTex.embeddedData;
                 mime     = mcTex.mimeType.empty() ? "image/png" : mcTex.mimeType;
                 if (!img.name.empty()) {
-                    std::filesystem::path namePath(img.name);
-                    if (!namePath.has_extension()) {
+                    size_t dot = img.name.rfind('.');
+                    if (dot == std::string::npos) {
                         std::string ext = "png";
                         if (mime == "image/jpeg") ext = "jpg";
                         else if (mime == "image/webp") ext = "webp";
                         img.name = img.name + "." + ext;
                     }
-                    imageFileName = std::filesystem::path(img.name).filename().string();
+                    imageFileName = FileNameFromPath(img.name);
                 }
             }
             else if (!mcTex.uri.empty())
@@ -193,11 +202,11 @@ private:
                         std::istreambuf_iterator<char>(ifs), {});
                     mime = MimeTypeFromPath(mcTex.uri);
                 }
-                imageFileName = std::filesystem::path(mcTex.uri).filename().string();
+                imageFileName = FileNameFromPath(mcTex.uri);
             }
 
             if (imageFileName.empty() && !img.name.empty()) {
-                imageFileName = std::filesystem::path(img.name).filename().string();
+                imageFileName = FileNameFromPath(img.name);
             }
             if (imageFileName.empty()) {
                 std::string ext = "png";
@@ -221,7 +230,7 @@ private:
             }
             else if (!mcTex.uri.empty())
             {
-                img.uri = mcTex.uri.string();
+                img.uri = mcTex.uri;
             }
 
             tinygltf::Texture gTex;

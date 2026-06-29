@@ -144,7 +144,7 @@ void GltfSceneConverter::ConvertTextures(const tinygltf::Model& model,
             {
                 std::filesystem::path p = std::filesystem::u8path(baseDir) /
                                           std::filesystem::u8path(img.uri);
-                mcTex.uri      = p;
+                mcTex.uri      = p.u8string();
                 mcTex.embedded = false;
             }
         }
