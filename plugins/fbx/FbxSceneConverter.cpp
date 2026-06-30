@@ -336,10 +336,14 @@ namespace mc
         // 不带参数默认：pOverwrite=false（不覆盖已有法线），pByCtrlPoint=false（逐多边形顶点）
         if (fbxMesh->GetElementNormalCount() == 0)
         {
-            fbxMesh->GenerateNormals();
+            // pByCtrlPoint=true：按控制点生成平均法线（平滑着色），与 Blender FBX 导入器
+            // 在缺少显式法线时的回退行为一致。若使用默认的逐多边形顶点（flat shading），
+            // 顶点去重（见 FbxMeshHelper 的 VertexKey）会因每个面法线互不相同而完全失效，
+            // 导致顶点数膨胀（如本例 52255 vs Blender 的 8758）且表面呈现刻面状的粗糙观感。
+            fbxMesh->GenerateNormals(/*pOverwrite=*/false, /*pByCtrlPoint=*/true);
             Logger::Instance().LogInfo(
                 std::string("FbxSceneConverter: mesh \"") + fbxNode->GetName() +
-                "\" has no normals, generated from geometry");
+                "\" has no normals, generated smooth normals by control point");
         }
 
         // FBX SDK 三角化后网格仍是扇形三角化 + 顶点解包（委托给 FbxMeshHelper）
@@ -578,6 +582,58 @@ namespace mc
         FbxTimeSpan timeSpan = animStack->GetLocalTimeSpan();
         double startSec = timeSpan.GetStart().GetSecondDouble();
         double endSec = timeSpan.GetStop().GetSecondDouble();
+
+        // AnimStack 的 LocalTimeSpan 常常比实际关键帧范围更宽（如轴跨度从帧 0 开始，
+        // 但首个关键帧实际落在帧 1）。若直接按 LocalTimeSpan 采样，t=0 处求值器会用
+        // 首关键帧之前的常量外推值填充，导致动画看起来"提前一帧"开始运动，
+        // 与 Blender 等工具按真实关键帧范围采样的行为不一致。
+        // 因此改为：先扫描所有 TRS 曲线的真实关键帧时间范围，存在则覆盖采样区间。
+        {
+            bool found = false;
+            FbxTime realStart, realEnd;
+            auto scanCurve = [&](FbxAnimCurve *curve)
+            {
+                if (!curve)
+                    return;
+                FbxTimeSpan interval;
+                if (!curve->GetTimeInterval(interval))
+                    return;
+                if (!found)
+                {
+                    realStart = interval.GetStart();
+                    realEnd = interval.GetStop();
+                    found = true;
+                }
+                else
+                {
+                    if (interval.GetStart() < realStart)
+                        realStart = interval.GetStart();
+                    if (interval.GetStop() > realEnd)
+                        realEnd = interval.GetStop();
+                }
+            };
+
+            for (auto &[fbxNode, mcNodeId] : m_nodeMap)
+            {
+                scanCurve(fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X));
+                scanCurve(fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y));
+                scanCurve(fbxNode->LclTranslation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z));
+                scanCurve(fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X));
+                scanCurve(fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y));
+                scanCurve(fbxNode->LclRotation.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z));
+                scanCurve(fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_X));
+                scanCurve(fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Y));
+                scanCurve(fbxNode->LclScaling.GetCurve(layer, FBXSDK_CURVENODE_COMPONENT_Z));
+            }
+
+            if (found)
+            {
+                startSec = realStart.GetSecondDouble();
+                endSec = realEnd.GetSecondDouble();
+                clip.startTime = startSec;
+                clip.endTime = endSec;
+            }
+        }
 
         // 生成均匀采样时间列表（包含精确的末帧）
         double dt = 1.0 / fps;
