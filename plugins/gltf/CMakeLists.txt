@@ -1,6 +1,7 @@
 # Plugin_Gltf —— Phase08 GLTF/GLB 导入插件（tinygltf header-only）
 add_library(Plugin_Gltf SHARED
     Plugin_Gltf.cpp
+    GltfCommonUtils.cpp
     GltfSceneConverter.cpp
     GltfExporter.cpp
 )
