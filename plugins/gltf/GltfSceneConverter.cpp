@@ -291,6 +291,68 @@ namespace mc
     }
 
     // ============================================================
+    // 读取 mesh.extras.targetNames（约定俗成的扩展，不少导出器用它记录
+    // primitive.targets 各项对应的 BlendShape 名字；没有则用 "Morph_N" 兜底）
+    // ============================================================
+    static std::vector<std::string> ReadMorphTargetNames(const tinygltf::Mesh &gMesh)
+    {
+        std::vector<std::string> names;
+        if (!gMesh.extras.Has("targetNames"))
+            return names;
+
+        const auto &arr = gMesh.extras.Get("targetNames");
+        for (size_t i = 0; i < arr.ArrayLen(); ++i)
+            names.push_back(arr.Get((int)i).Get<std::string>());
+        return names;
+    }
+
+    // ============================================================
+    // ConvertMorphTargets —— 读取单个 primitive 的 targets（POSITION/NORMAL 位移）
+    // 与 FbxSceneConverter::ConvertMesh 的 BlendShape 导入保持同样的"全量数组"语义：
+    // positionDeltas/normalDeltas 与 mcMesh.positions 等长，按 vertexBase 偏移写入。
+    // ============================================================
+    static void ConvertMorphTargets(const tinygltf::Model &model,
+                                    const tinygltf::Primitive &prim,
+                                    const std::vector<std::string> &targetNames,
+                                    uint32_t vertexBase,
+                                    uint32_t vertexCount,
+                                    Mesh &mcMesh)
+    {
+        for (size_t ti = 0; ti < prim.targets.size(); ++ti)
+        {
+            if (mcMesh.morphTargets.size() <= ti)
+            {
+                MorphTarget mt;
+                mt.name = (ti < targetNames.size()) ? targetNames[ti] : ("Morph_" + std::to_string(ti));
+                mcMesh.morphTargets.push_back(std::move(mt));
+            }
+            MorphTarget &mt = mcMesh.morphTargets[ti];
+            mt.positionDeltas.resize(mcMesh.positions.size());
+
+            const auto &target = prim.targets[ti];
+
+            auto posIt = target.find("POSITION");
+            if (posIt != target.end())
+            {
+                auto floats = ReadFloatAccessorValues(model, posIt->second);
+                for (uint32_t v = 0; v < vertexCount && v * 3 + 2 < floats.size(); ++v)
+                    mt.positionDeltas[vertexBase + v] =
+                        Vec3(floats[v * 3 + 0], floats[v * 3 + 1], floats[v * 3 + 2]);
+            }
+
+            auto nrmIt = target.find("NORMAL");
+            if (nrmIt != target.end())
+            {
+                mt.normalDeltas.resize(mcMesh.positions.size());
+                auto floats = ReadFloatAccessorValues(model, nrmIt->second);
+                for (uint32_t v = 0; v < vertexCount && v * 3 + 2 < floats.size(); ++v)
+                    mt.normalDeltas[vertexBase + v] =
+                        Vec3(floats[v * 3 + 0], floats[v * 3 + 1], floats[v * 3 + 2]);
+            }
+        }
+    }
+
+    // ============================================================
     // ConvertMeshes
     // ============================================================
     void GltfSceneConverter::ConvertMeshes(const tinygltf::Model &model, Scene &mcScene)
@@ -299,6 +361,7 @@ namespace mc
         {
             Mesh &mcMesh = mcScene.AddMesh();
             mcMesh.name = gMesh.name;
+            std::vector<std::string> targetNames = ReadMorphTargetNames(gMesh);
 
             uint32_t indexOffset = 0;
 
@@ -327,6 +390,12 @@ namespace mc
                     for (size_t j = 0; j + 2 < floats.size(); j += 3)
                         mcMesh.normals.push_back({floats[j], floats[j + 1], floats[j + 2]});
                 }
+
+                // BlendShape（Morph Target）：须在 mcMesh.positions 追加完毕后读取，
+                // 因为 ConvertMorphTargets 按 mcMesh.positions.size() 分配 deltas 数组
+                uint32_t vertexCount = (uint32_t)mcMesh.positions.size() - vertexBase;
+                if (!prim.targets.empty())
+                    ConvertMorphTargets(model, prim, targetNames, vertexBase, vertexCount, mcMesh);
 
                 // UV TEXCOORD_0
                 auto uvIt = prim.attributes.find("TEXCOORD_0");
