@@ -361,7 +361,8 @@ namespace mc
             // localMatrix -> FbxAMatrix
             FbxAMatrix mat = ToFbxAMatrix(mcNode.localMatrix);
 
-            // 蒙皮网格节点：自身的局部变换必须被完全丢弃（既不留在节点上，也不烘焙进顶点）。
+            // 蒙皮网格节点：自身的局部变换必须被完全丢弃（既不留在节点上，也不烘焙进顶点），
+            // 并且必须被 reparent 到场景根节点下（见 WireRootNodes）。
             // 原因（对应 glTF 蒙皮规范的等价推导）：蒙皮顶点的世界坐标由
             //   v_world = Σ w_i · jointGlobal_i · invBindMatrix_i · v_localRaw
             // 给出，公式中不含网格节点自身变换这一项——glTF 官方教程的
@@ -375,6 +376,10 @@ namespace mc
             // 无论节点自身是静止的还是被 TRS 动画驱动（例如 FishAnimated.glb 的
             // 网格节点 "Fish" 自身也带一段 TRS 动画），都必须丢弃——蒙皮网格节点自身
             // 的变换与是否被动画驱动无关，在渲染时都会被完全抵消。
+            // 此外，仅清零局部变换不足以保证 meshNodeGlobal=I：如果网格节点有带变换
+            // 的父节点（如 RiggedSimple.glb 中 Cylinder 的父节点 Armature 有旋转），
+            // 世界变换仍不为单位矩阵。因此必须同时 reparent 到根节点，才能满足
+            // BuildClustersForSkin 中 TransformMatrix=I 的不变量要求。
             bool isSkinnedMesh = !mcNode.meshIds.empty() &&
                                  m_skinnedMeshIds.count(mcNode.meshIds[0]) > 0;
 
@@ -432,6 +437,10 @@ namespace mc
                 FbxNode *fbxNode = m_nodeMap[mcNode.id];
                 for (ObjectID childId : mcNode.children)
                 {
+                    // 蒙皮网格节点不挂载到原始父节点下，而是由 WireRootNodes
+                    // 直接挂到场景根节点，确保其世界变换恒为单位矩阵
+                    if (m_skinnedMeshNodeIds.count(childId) > 0)
+                        continue;
                     auto it = m_nodeMap.find(childId);
                     if (it != m_nodeMap.end())
                         fbxNode->AddChild(it->second);
@@ -444,9 +453,26 @@ namespace mc
             FbxNode *root = m_fbxScene->GetRootNode();
             for (ObjectID rootId : scene.rootNodes)
             {
+                // 蒙皮网格节点跳过，后面统一添加到根节点
+                if (m_skinnedMeshNodeIds.count(rootId) > 0)
+                    continue;
                 auto it = m_nodeMap.find(rootId);
                 if (it != m_nodeMap.end())
                     root->AddChild(it->second);
+            }
+            // 蒙皮网格节点直接挂到场景根节点，确保其世界变换恒为单位矩阵。
+            // glTF 规范规定蒙皮网格节点的变换在渲染时被完全忽略，蒙皮结果
+            // 完全由骨骼驱动，因此 reparent 不改变视觉效果。
+            // 关键不变量：TransformMatrix=I 要求 meshNodeGlobal=I，
+            // 仅清零局部变换不够，还必须脱离带变换的父节点链。
+            for (const auto &mcNode : scene.nodes)
+            {
+                if (m_skinnedMeshNodeIds.count(mcNode.id) > 0)
+                {
+                    auto it = m_nodeMap.find(mcNode.id);
+                    if (it != m_nodeMap.end())
+                        root->AddChild(it->second);
+                }
             }
         }
 
@@ -593,14 +619,17 @@ namespace mc
         // （Blender 现行 io_scene_fbx、fbxreview、f3d、Win11 3D 查看器等）按照业界
         // 事实惯例，默认 TransformMatrix 恒为单位矩阵，会忽略或错误处理非单位值，
         // 表现为蒙皮网格倒置/拉伸。
-        // 这个选择与 MakeSceneNode 中的处理是同一个不变量的两面，必须配对成立：
+        // 这个选择与 MakeSceneNode + WireRootNodes 中的处理是同一个不变量的三面，必须配对成立：
         // 完整蒙皮公式为 v_world(t) = meshNodeGlobal(t) · Σ w_i · linkGlobal_i(t) ·
         // linkGlobal_i(bind)^-1 · TransformMatrix(bind) · v_local。TransformMatrix
         // 固定为单位矩阵后，要让公式正确简化为"忽略网格节点自身变换"，就必须同时
-        // 保证 meshNodeGlobal(t) 恒为单位矩阵——即蒙皮网格节点自身的
-        // LclTranslation/Rotation/Scaling 必须在 MakeSceneNode 中被强制清零丢弃
-        // （无论静态还是被动画驱动），不能保留在场景图里。若以后要改动这里的
-        // TransformMatrix，必须同步检查 MakeSceneNode 是否还需要清零。 
+        // 保证 meshNodeGlobal(t) 恒为单位矩阵——这需要三步配对操作：
+        //   1) MakeSceneNode 中清零蒙皮网格节点的 LclTranslation/Rotation/Scaling
+        //   2) WireRootNodes 中将蒙皮网格节点 reparent 到场景根节点（脱离带变换的父节点链）
+        //   3) AddAnimations 中跳过给蒙皮网格节点添加 TRS 动画曲线
+        // 缺少步骤 2 时，即使局部变换清零，父节点的旋转仍会使世界变换≠I，
+        // 导致 Blender/Babylon.js 等解析器中蒙皮与骨骼之间出现旋转偏差。
+        // 若以后要改动这里的 TransformMatrix，必须同步检查上述三步。
         void BuildClustersForSkin(const Scene &scene, const Skeleton &skel,
                                   FbxSkin *fbxSkin, FbxPose *bindPose,
                                   std::vector<FbxCluster *> &clusters)
