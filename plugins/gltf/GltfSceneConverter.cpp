@@ -397,15 +397,18 @@ namespace mc
                 if (!prim.targets.empty())
                     ConvertMorphTargets(model, prim, targetNames, vertexBase, vertexCount, mcMesh);
 
-                // UV TEXCOORD_0
-                auto uvIt = prim.attributes.find("TEXCOORD_0");
-                if (uvIt != prim.attributes.end())
+                // UV TEXCOORD_0, TEXCOORD_1, ...：normalTexture 等常用与 baseColorTexture
+                // 不同的第二套 UV（texCoord=1），必须全部读出，否则法线贴图会用错 UV 显示错乱
+                for (int uvSet = 0;; ++uvSet)
                 {
+                    auto uvIt = prim.attributes.find("TEXCOORD_" + std::to_string(uvSet));
+                    if (uvIt == prim.attributes.end())
+                        break;
                     auto floats = ReadFloatAccessorValues(model, uvIt->second);
-                    if (mcMesh.uvs.empty())
+                    while ((int)mcMesh.uvs.size() <= uvSet)
                         mcMesh.uvs.emplace_back();
                     for (size_t j = 0; j + 1 < floats.size(); j += 2)
-                        mcMesh.uvs[0].push_back({floats[j], floats[j + 1]});
+                        mcMesh.uvs[uvSet].push_back({floats[j], floats[j + 1]});
                 }
 
                 // Indices

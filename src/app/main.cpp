@@ -127,12 +127,18 @@ int main(int argc, char* argv[])
 {
     if (argc < 3)
     {
-        std::cerr << "Usage: mc_cli <input> <output>\n";
+        std::cerr << "Usage: mc_cli <input> <output> [--no-embed-textures]\n";
         return 1;
     }
 
     const std::string inputPath  = argv[1];
     const std::string outputPath = argv[2];
+
+    // 默认贴图内嵌到输出文件（GLB/FBX 均支持）；--no-embed-textures 时改为写外部贴图文件
+    bool embedTextures = true;
+    for (int i = 3; i < argc; ++i)
+        if (std::string(argv[i]) == "--no-embed-textures")
+            embedTextures = false;
 
     // ---- 提取扩展名 ----
     std::string inExt  = GetLowerExt(inputPath);
@@ -233,6 +239,7 @@ int main(int argc, char* argv[])
 
         mc::ExportContext ctx;
         ctx.outputPath = outputPath;
+        ctx.options.embedTextures = embedTextures;
 
         mc::VoidResult exportResult = exporter->Export(scene, ctx);
 

@@ -10,6 +10,7 @@
 
 #include <fbxsdk.h>
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -173,17 +174,21 @@ namespace mc
             return {};
         }
 
-        void BindBaseColorTexture(FbxSurfacePhong *fbxMat, const Material &mat)
+        // 根据 TextureRef 创建一个 FbxFileTexture；找不到贴图数据时返回 nullptr。
+        // 抽取此函数是因为 BaseColor/Normal/Emissive/MetallicRoughness 贴图的创建流程完全一致，
+        // 只是目标属性和命名后缀不同。
+        FbxFileTexture *CreateFbxFileTexture(const TextureRef &texRef, const std::string &matName,
+                                             const std::string &suffix)
         {
-            auto texIt = m_texSrcMap.find(mat.baseColorTexture.textureId);
+            auto texIt = m_texSrcMap.find(texRef.textureId);
             if (texIt == m_texSrcMap.end())
-                return;
+                return nullptr;
 
             std::filesystem::path texPath = ResolveTexturePath(*texIt->second);
             if (texPath.empty())
-                return;
+                return nullptr;
 
-            FbxFileTexture *fbxTex = FbxFileTexture::Create(m_fbxScene, (mat.name + "_BaseColor").c_str());
+            FbxFileTexture *fbxTex = FbxFileTexture::Create(m_fbxScene, (matName + suffix).c_str());
             std::string absPath = std::filesystem::absolute(texPath).u8string();
             std::string relPath = texPath.filename().u8string();
             fbxTex->SetFileName(absPath.c_str());
@@ -195,25 +200,94 @@ namespace mc
             fbxTex->SetTranslation(0.0, 0.0);
             fbxTex->SetScale(1.0, 1.0);
             fbxTex->SetRotation(0.0, 0.0);
+            // UVSet 必须与 AddUVs 写入的 FbxLayerElementUV 名字一致，这是 FBX SDK 官方推荐的
+            // 多 UV 关联方式（见 SDK 样例 ExportScene03、Blender 自身 io_scene_fbx 导出器写入
+            // 同名属性的方式完全一致），数据层面完全符合规范。
+            //
+            // 【已知互操作限制】实测（2024）确认：Maya、Sketchfab 能正确按 UVSet 使用第二套 UV，
+            // 但 Blender 的 FBX 导入插件（io_scene_fbx，通过 PrincipledBSDFWrapper 重建材质节点图）
+            // 对全部贴图只创建一个共享的 UV 坐标节点，完全不读取每张贴图的 UVSet 属性；
+            // Unreal 与 fbxreview.exe 同样观测到无法正确按贴图区分 UV 通道。
+            // 这是这些工具的 FBX 导入器自身能力限制，不是本导出器的数据缺陷；
+            // 无法通过修改导出数据规避，只能等待对应工具改进导入逻辑，或导入后手动在材质
+            // 节点图里补一个指向正确 UV 层的 "UV Map" 节点。
+            fbxTex->UVSet.Set(FbxString(UVSetName(texRef.uvSet).c_str()));
 
             // 注意：FBX SDK 的内嵌（EXP_FBX_EMBEDDED，见 Export()）只需要 FbxFileTexture
             // 的文件名指向磁盘上真实存在的文件即可自动嵌入，不需要手动创建 FbxVideo
             // （官方样例 ExportScene03 也是这样做的）。
+            return fbxTex;
+        }
 
-            fbxMat->Diffuse.ConnectSrcObject(fbxTex);
+        void BindBaseColorTexture(FbxSurfacePhong *fbxMat, const Material &mat)
+        {
+            if (auto *tex = CreateFbxFileTexture(mat.baseColorTexture, mat.name, "_BaseColor"))
+                fbxMat->Diffuse.ConnectSrcObject(tex);
+        }
+
+        // glTF 法线贴图是切线空间贴图，对应 FBX 经典材质模型的 NormalMap 属性
+        // （Blender io_scene_fbx 导入时按连接类型 "NormalMap"/"Bump" 识别法线贴图）。
+        void BindNormalTexture(FbxSurfacePhong *fbxMat, const Material &mat)
+        {
+            if (auto *tex = CreateFbxFileTexture(mat.normalTexture, mat.name, "_Normal"))
+                fbxMat->NormalMap.ConnectSrcObject(tex);
+        }
+
+        void BindEmissiveTexture(FbxSurfacePhong *fbxMat, const Material &mat)
+        {
+            if (auto *tex = CreateFbxFileTexture(mat.emissiveTexture, mat.name, "_Emissive"))
+                fbxMat->Emissive.ConnectSrcObject(tex);
+        }
+
+        // glTF 的 metallicRoughness 贴图把 metallic/roughness 打包在同一张图的 B/G 通道，
+        // 但经典 FBX Phong 材质模型没有通道打包的概念，也没有专门的 Metallic/Roughness 贴图槽。
+        // 采用 FBX 生态里事实上的互操作惯例（Blender io_scene_fbx、3ds Max 等的 PBR 导出/导入
+        // 均如此）：把同一张贴图整体分别接到 ReflectionFactor（对应 metallic_texture）和
+        // Shininess/ShininessExponent（对应 roughness_texture）。这只是近似效果，不是按
+        // 通道精确拆分——FBX 经典材质模型本身不支持后者。
+        void BindMetallicRoughnessTexture(FbxSurfacePhong *fbxMat, const Material &mat)
+        {
+            if (auto *tex = CreateFbxFileTexture(mat.metallicRoughnessTexture, mat.name, "_MetallicRoughness"))
+            {
+                fbxMat->ReflectionFactor.ConnectSrcObject(tex);
+                fbxMat->Shininess.ConnectSrcObject(tex);
+            }
+        }
+
+        // glTF PBR roughness -> 经典 Phong Shininess 的换算。采用 Blender io_scene_fbx
+        // 导入公式 roughness = 1 - sqrt(shininess)/10 的逆运算，以保证在 Blender 中
+        // 显示的粗糙度与原始 glTF 值一致。仅对 MetallicRoughness workflow 生效——
+        // 若材质本就来自 Phong 工作流（如从其他 FBX 导入再转出），直接沿用原始
+        // mat.shininess，避免被覆盖为不相关的换算值。
+        static double ComputeFbxShininess(const Material &mat)
+        {
+            if (mat.workflow != Material::MetallicRoughness)
+                return mat.shininess;
+            double r = std::clamp((double)mat.roughness, 0.0, 1.0);
+            return std::pow(10.0 * (1.0 - r), 2.0);
+        }
+
+        static double ComputeFbxMetallic(const Material &mat)
+        {
+            return mat.workflow == Material::MetallicRoughness ? (double)mat.metallic : 0.0;
         }
 
         // ---- Materials ----
         FbxSurfaceMaterial *MakeMaterial(const Material &mat)
         {
             auto *fbxMat = FbxSurfacePhong::Create(m_fbxScene, mat.name.c_str());
+            fbxMat->ShadingModel.Set("Phong");
             fbxMat->Diffuse.Set(FbxDouble3(mat.baseColor.x, mat.baseColor.y, mat.baseColor.z));
             fbxMat->DiffuseFactor.Set(mat.baseColor.w);
             fbxMat->Emissive.Set(FbxDouble3(mat.emissive.x, mat.emissive.y, mat.emissive.z));
-            fbxMat->Shininess.Set(mat.shininess);
-            fbxMat->ShadingModel.Set("Phong");
             fbxMat->TransparencyFactor.Set(1.0 - mat.opacity);
+            fbxMat->ReflectionFactor.Set(ComputeFbxMetallic(mat));
+            fbxMat->Shininess.Set(ComputeFbxShininess(mat));
+
             BindBaseColorTexture(fbxMat, mat);
+            BindNormalTexture(fbxMat, mat);
+            BindEmissiveTexture(fbxMat, mat);
+            BindMetallicRoughnessTexture(fbxMat, mat);
             return fbxMat;
         }
 
@@ -257,15 +331,31 @@ namespace mc
             layer->SetNormals(elem);
         }
 
+        // 统一命名规则：uvSet=0 对应 "UVMap"，其余与索引拼接（"UVMap1"、"UVMap2" ...）。
+        // BuildMesh 写入 UV 层时与 CreateFbxFileTexture 绑定贴图 UVSet 属性时共用同一套命名，
+        // 以此关联贴图引用的 texCoord 索引与网格实际写入的 UV 通道。
+        static std::string UVSetName(int uvSet)
+        {
+            return uvSet <= 0 ? "UVMap" : ("UVMap" + std::to_string(uvSet));
+        }
+
         void AddUVs(FbxMesh *fbxMesh, const Mesh &mcMesh)
         {
-            if (!m_opts.exportUVs || mcMesh.uvs.empty() || mcMesh.uvs[0].empty())
+            if (!m_opts.exportUVs)
                 return;
-            auto *elem = fbxMesh->CreateElementUV("UVMap");
-            elem->SetMappingMode(FbxLayerElement::eByControlPoint);
-            elem->SetReferenceMode(FbxLayerElement::eDirect);
-            for (const auto &uv : mcMesh.uvs[0])
-                elem->GetDirectArray().Add(FbxVector2(uv.x, 1.0 - uv.y));
+
+            // 逐个导出每套 UV（glTF TEXCOORD_0/TEXCOORD_1/...），不只写第一套，
+            // 否则 normalTexture 等使用第二套 UV 的贴图将因缺少对应 UV 通道而错位。
+            for (size_t uvSet = 0; uvSet < mcMesh.uvs.size(); ++uvSet)
+            {
+                if (mcMesh.uvs[uvSet].empty())
+                    continue;
+                auto *elem = fbxMesh->CreateElementUV(UVSetName((int)uvSet).c_str());
+                elem->SetMappingMode(FbxLayerElement::eByControlPoint);
+                elem->SetReferenceMode(FbxLayerElement::eDirect);
+                for (const auto &uv : mcMesh.uvs[uvSet])
+                    elem->GetDirectArray().Add(FbxVector2(uv.x, 1.0 - uv.y));
+            }
         }
 
         int FindNodeMaterialIndex(FbxNode *node, FbxSurfaceMaterial *mat)

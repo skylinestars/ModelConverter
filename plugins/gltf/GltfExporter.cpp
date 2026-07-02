@@ -332,7 +332,8 @@ namespace mc
         // ---- Mesh attribute accessors (per-mesh, written once) ----
         struct MeshAttribs
         {
-            int pos = -1, nrm = -1, uv = -1;
+            int pos = -1, nrm = -1;
+            std::vector<int> uvs; // uvs[i] 对应 TEXCOORD_i 的 accessor 下标，-1 表示该套 UV 未写出
         };
 
         MeshAttribs BuildMeshAttribs(const Mesh &mcMesh)
@@ -361,12 +362,21 @@ namespace mc
                     TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC3, (int)mcMesh.normals.size(),
                     TINYGLTF_TARGET_ARRAY_BUFFER);
 
-            if (m_opts.exportUVs && !mcMesh.uvs.empty() &&
-                mcMesh.uvs[0].size() == mcMesh.positions.size())
-                r.uv = PushAccessor(
-                    mcMesh.uvs[0].data(), mcMesh.uvs[0].size() * sizeof(Vec2),
-                    TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC2, (int)mcMesh.uvs[0].size(),
-                    TINYGLTF_TARGET_ARRAY_BUFFER);
+            // 逐套导出 UV（TEXCOORD_0/1/2...），法线贴图等常用非 0 号 UV 集，
+            // 若只导出第一套会导致对应 UV 通道在 glTF 里缺失
+            if (m_opts.exportUVs)
+            {
+                r.uvs.resize(mcMesh.uvs.size(), -1);
+                for (size_t i = 0; i < mcMesh.uvs.size(); ++i)
+                {
+                    if (mcMesh.uvs[i].size() != mcMesh.positions.size())
+                        continue;
+                    r.uvs[i] = PushAccessor(
+                        mcMesh.uvs[i].data(), mcMesh.uvs[i].size() * sizeof(Vec2),
+                        TINYGLTF_COMPONENT_TYPE_FLOAT, TINYGLTF_TYPE_VEC2, (int)mcMesh.uvs[i].size(),
+                        TINYGLTF_TARGET_ARRAY_BUFFER);
+                }
+            }
 
             return r;
         }
@@ -380,8 +390,9 @@ namespace mc
             prim.attributes["POSITION"] = a.pos;
             if (a.nrm >= 0)
                 prim.attributes["NORMAL"] = a.nrm;
-            if (a.uv >= 0)
-                prim.attributes["TEXCOORD_0"] = a.uv;
+            for (size_t i = 0; i < a.uvs.size(); ++i)
+                if (a.uvs[i] >= 0)
+                    prim.attributes["TEXCOORD_" + std::to_string(i)] = a.uvs[i];
 
             prim.indices = PushAccessor(
                 indices.data() + idxOffset, idxCount * sizeof(uint32_t),

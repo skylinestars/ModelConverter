@@ -156,6 +156,45 @@ namespace mc
     }
 
     // ============================================================
+    // ReadMaterialTexture
+    // ============================================================
+    // 与 FbxExporter::UVSetName 的命名约定对应（"UVMap"→0，"UVMap1"→1，"UVMap2"→2 ...），
+    // 用于从贴图的 UVSet 属性还原 texCoord 索引；非本导出器写入的、命名不符合此约定的
+    // FBX 文件会退回默认值 0，不影响正常显示（多数 FBX 贴图本来就只用一套 UV）。
+    static int ParseUVSetIndex(const FbxString &uvSetName)
+    {
+        std::string s = uvSetName.Buffer();
+        static const std::string kPrefix = "UVMap";
+        if (s.size() > kPrefix.size() && s.compare(0, kPrefix.size(), kPrefix) == 0)
+        {
+            try
+            {
+                return std::stoi(s.substr(kPrefix.size()));
+            }
+            catch (...)
+            {
+            }
+        }
+        return 0;
+    }
+
+    TextureRef FbxSceneConverter::ReadMaterialTexture(FbxSurfaceMaterial *fbxMat, const char *propName, Scene &mcScene)
+    {
+        TextureRef ref;
+        FbxProperty prop = fbxMat->FindProperty(propName);
+        if (!prop.IsValid() || prop.GetSrcObjectCount<FbxFileTexture>() == 0)
+            return ref;
+
+        auto *fbxTex = prop.GetSrcObject<FbxFileTexture>(0);
+        if (!fbxTex)
+            return ref;
+
+        ref.textureId = GetOrCreateTexture(fbxTex, mcScene);
+        ref.uvSet = ParseUVSetIndex(fbxTex->UVSet.Get());
+        return ref;
+    }
+
+    // ============================================================
     // GetOrCreateMaterial
     // ============================================================
     // 从 FBX 材质中读取漫反射颜色。
@@ -254,18 +293,45 @@ namespace mc
             }
 
             // Diffuse texture
-            // FBX 中纹理覆盖颜色；GLTF 规范中 baseColorFactor × baseColorTexture 相乘，
-            // 有纹理时须将 baseColor 重置为白色，避免非白色 factor 在 Blender 中产生 Color Factor 节点
-            FbxProperty prop = fbxMat->FindProperty(FbxSurfaceMaterial::sDiffuse);
-            if (prop.IsValid() && prop.GetSrcObjectCount<FbxFileTexture>() > 0)
+            // FBX 经典材质模型中，Diffuse 属性一旦连接了贴图，其静态颜色值通常只是未清理的
+            // SDK 默认灰（实测 FbxSurfacePhong 编译期默认为 (0.8,0.8,0.8)），并不代表真实的
+            // 颜色相乘系数；但本导出器（FbxExporter::MakeMaterial）会把 glTF baseColorFactor
+            // 真实写入该属性，此时必须保留，否则会丢失回环导出时的颜色系数（对应 Blender
+            // glTF 材质节点图里的 "Color Factor" Multiply 节点）。
+            // 用"是否接近 SDK 默认灰"区分两种情况：接近默认灰视为未授权的占位值，重置为白色
+            // （避免第三方 FBX 遗留默认值给贴图叠加灰色调）；否则保留读到的真实系数。
+            mcMat.baseColorTexture = ReadMaterialTexture(fbxMat, FbxSurfaceMaterial::sDiffuse, mcScene);
+            if (mcMat.baseColorTexture.textureId != INVALID_ID)
             {
-                auto *fbxTex = prop.GetSrcObject<FbxFileTexture>(0);
-                if (fbxTex)
-                {
-                    mcMat.baseColorTexture.textureId = GetOrCreateTexture(fbxTex, mcScene);
-                    mcMat.baseColor = Vec4(1.0f, 1.0f, 1.0f, mcMat.opacity);
-                }
+                const bool looksUnauthoredDefault =
+                    std::abs(mcMat.diffuse.x - 0.8f) < 0.01f &&
+                    std::abs(mcMat.diffuse.y - 0.8f) < 0.01f &&
+                    std::abs(mcMat.diffuse.z - 0.8f) < 0.01f;
+                mcMat.baseColor = looksUnauthoredDefault
+                                      ? Vec4(1.0f, 1.0f, 1.0f, mcMat.opacity)
+                                      : Vec4(mcMat.diffuse.x, mcMat.diffuse.y, mcMat.diffuse.z, mcMat.opacity);
             }
+
+            // 与 FbxExporter::MakeMaterial 的写入约定对应：
+            // NormalMap→normalTexture，Emissive→emissiveTexture，ReflectionFactor→metallicRoughnessTexture
+            mcMat.normalTexture = ReadMaterialTexture(fbxMat, FbxSurfaceMaterial::sNormalMap, mcScene);
+            mcMat.emissiveTexture = ReadMaterialTexture(fbxMat, FbxSurfaceMaterial::sEmissive, mcScene);
+            mcMat.metallicRoughnessTexture = ReadMaterialTexture(fbxMat, FbxSurfaceMaterial::sReflectionFactor, mcScene);
+
+            // ReflectionFactor 的 FBX SDK 编译期默认值是 1.0（经典 Phong "环境反射强度"语义，
+            // 与 glTF metallic 语义无关）；直接读回会把绝大多数从未设置过该属性、来自其他工具的
+            // 经典 Phong 材质误判为全金属。仅在下列情况下信任该值为 PBR metallic（对应
+            // FbxExporter::ComputeFbxMetallic 的写入约定）：属性上连接了贴图（明确的 PBR 工作流
+            // 特征），或标量值明显偏离 SDK 默认值 1.0。
+            {
+                double reflectionFactor = phong->ReflectionFactor.Get();
+                bool hasMetallicTexture = mcMat.metallicRoughnessTexture.textureId != INVALID_ID;
+                if (hasMetallicTexture || std::abs(reflectionFactor - 1.0) > 1e-6)
+                    mcMat.metallic = (float)std::clamp(reflectionFactor, 0.0, 1.0);
+            }
+
+            FbxDouble3 emi = phong->Emissive.Get();
+            mcMat.emissive = Vec3((float)emi[0], (float)emi[1], (float)emi[2]);
         }
         else if (fbxMat->Is<FbxSurfaceLambert>())
         {

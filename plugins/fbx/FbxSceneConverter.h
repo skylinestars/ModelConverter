@@ -40,6 +40,9 @@ namespace mc
 
         ObjectID GetOrCreateMaterial(fbxsdk::FbxSurfaceMaterial *fbxMat, Scene &mcScene);
         ObjectID GetOrCreateTexture(fbxsdk::FbxFileTexture *fbxTex, Scene &mcScene);
+        // 从材质指定属性（如 FbxSurfaceMaterial::sNormalMap）读取贴图，
+        // 并根据 UVSet 属性还原 texCoord 索引，找不到贴图时返回默认 TextureRef（textureId=INVALID_ID）
+        TextureRef ReadMaterialTexture(fbxsdk::FbxSurfaceMaterial *fbxMat, const char *propName, Scene &mcScene);
 
         void ConvertAnimations(fbxsdk::FbxScene *fbxScene, Scene &mcScene);
         void ConvertAnimStack(fbxsdk::FbxAnimStack *animStack,
